@@ -1,12 +1,12 @@
 include /env.mak
 
-obj-m += ryzen5k-synobios.o
+obj-m += raptorlakes-synobios.o
 
-ryzen5k-synobios-objs = \
+raptorlakes-synobios-objs = \
 	../common/common.o \
 	../syno_ttyS/syno_ttyS.o \
 	../synobios.o \
-	rs4024xs+.o \
+	rs4025xs+.o \
 	../mapping.o \
 	../rtc/localtime.o \
 	../rtc/alarmtime.o \
@@ -14,5 +14,5 @@ ryzen5k-synobios-objs = \
 	../rtc/rtc-linux-seiko.o \
 	../i2c/i2c-linux.o \
 	../pmbus/pmbus.o \
-	ryzen5k_common.o \
+	raptorlakes_common.o \
 	../led/led_trigger.o

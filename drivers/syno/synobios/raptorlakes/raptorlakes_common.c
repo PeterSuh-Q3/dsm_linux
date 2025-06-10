@@ -1,7 +1,7 @@
 #ifndef MY_ABC_HERE
 #define MY_ABC_HERE
 #endif
-// Copyright (c) 2000-2019 Synology Inc. All rights reserved.
+// Copyright (c) 2000-2023 Synology Inc. All rights reserved.
 
 #include <linux/syno.h>
 #include <linux/module.h>
@@ -12,10 +12,16 @@
 #include <linux/fs.h>
 #include <linux/cpumask.h>
 #include <linux/cpufreq.h>
+#include <linux/i2c.h>
 #include "../rtc/rtc.h"
 #include "../i2c/i2c-linux.h"
+#include "raptorlakes_common.h"
+#ifdef CONFIG_SYNO_HWMON_PMBUS
+#include <linux/syno_fdt.h>
 #include "../pmbus/pmbus.h"
-#include "broadwellnkv2_common.h"
+#endif /* CONFIG_SYNO_HWMON_PMBUS */
+
+static int Uninitialize(void);
 
 #ifdef MY_DEF_HERE
 extern int giDenoOfTimeInterval;
@@ -23,80 +29,8 @@ extern int giDenoOfTimeInterval;
 
 static struct model_ops *model_ops = NULL;
 static struct hwmon_sensor_list *hwmon_sensor_list = NULL;
-int (*GetMaxInternalHostNum)(void) = NULL;
 
-#ifdef MY_DEF_HERE
-extern int (*funcSYNOSATADiskLedCtrl)(int iHostNum, SYNO_DISK_LED diskLed);
-#endif /* MY_DEF_HERE */
-
-#ifdef CONFIG_SYNO_SAS_HOST_DISK_LED_CTRL
-extern int (*syno_valid_lsi3008_led)(u8 cmd);
-#endif /* CONFIG_SYNO_SAS_HOST_DISK_LED_CTRL */
-
-#ifdef CONFIG_SYNO_ICH_GPIO_CTRL
-int SetIchGpioPin( GPIO_PIN *pPin )
-{
-	int ret = -1;
-
-	if ( NULL == pPin ) {
-		goto End;
-	}
-
-	if ( 75 < pPin->pin ) {
-		goto End;
-	}
-
-	if (0 != syno_pch_lpc_gpio_pin((int)pPin->pin, (int*)&pPin->value, 1)) {
-		goto End;
-	}
-
-	ret = 0;
-End:
-	return ret;
-}
-
-int GetIchGpioPin( GPIO_PIN *pPin )
-{
-	int ret = -1;
-
-	if ( NULL == pPin ) {
-		goto End;
-	}
-
-	if ( 75 < pPin->pin ) {
-		goto End;
-	}
-
-	if (0 != syno_pch_lpc_gpio_pin((int)pPin->pin, (int*)&pPin->value, 0)) {
-		goto End;
-	}
-
-	ret = 0;
-End:
-	return ret;
-}
-#endif /* CONFIG_SYNO_ICH_GPIO_CTRL */
-/**
- *	Set Max internal disk numbers
- */
-int GetMaxInternalDiskNum(void)
-{
-	int iMaxInternalDiskNum = 0;
-
-	switch(GetModel()) {
-		case MODEL_RS4022xsp:
-			iMaxInternalDiskNum = 16;
-			break;
-		case MODEL_FS3410:
-			iMaxInternalDiskNum = 24;
-			break;
-		case MODEL_SA3410:
-		case MODEL_SA3610:
-			iMaxInternalDiskNum = 12;
-			break;
-	}
-	return iMaxInternalDiskNum;
-}
+static int Uninitialize(void);
 
 // If there is any necessary to modify these function on any other model, please rewrite another function to replace it
 PWM_FAN_SPEED_MAPPING gxsSpeedMapping[] = {
@@ -138,6 +72,18 @@ int xsFanSpeedMapping(FAN_SPEED speed)
 	return iDutyCycle;
 }
 
+int GetMaxInternalDiskNum(void)
+{
+	int iMaxInternalDiskNum = 0;
+
+	switch(GetModel()) {
+		case MODEL_RS4025xsp:
+			iMaxInternalDiskNum = 16;
+			break;
+	}
+	return iMaxInternalDiskNum;
+}
+
 /*
  * On RS10613xsp, and RS3413xsp we have no buzzer clear button anymore, so we need another way to stop redundant power buzzer
  */
@@ -146,9 +92,9 @@ int xsSetBuzzerClear(unsigned char buzzer_cleared)
 	GPIO_PIN Pin;
 	int ret = -1;
 
-	Pin.pin = BROADWELLNKV2_BUZZER_CTRL_PIN;
+	Pin.pin = RAPTORLAKES_BUZZER_CTRL_PIN;
 	Pin.value = buzzer_cleared;
-	if (0 > SetIchGpioPin(&Pin)) {
+	if (0 > SetGpioPin(&Pin)) {
 #ifdef MY_DEF_HERE
 		giDenoOfTimeInterval = -1;
 #endif /* MY_DEF_HERE */
@@ -165,21 +111,21 @@ int xsGetBuzzerCleared(unsigned char *buzzer_cleared)
     GPIO_PIN Pin;
     int ret = -1;
 
-	if ( NULL == buzzer_cleared ) {
+	if (NULL == buzzer_cleared) {
 		goto End;
 	}
 
 	*buzzer_cleared = 0;
 
-	Pin.pin = BROADWELLNKV2_BUZZER_OFF_PIN;
-    if ( 0 > GetIchGpioPin( &Pin ) ) {
+	Pin.pin = RAPTORLAKES_BUZZER_OFF_PIN;
+    if (0 > GetGpioPin(&Pin)) {
 #ifdef MY_DEF_HERE
 		giDenoOfTimeInterval = -1;
 #endif /* MY_DEF_HERE */
         goto End;
     }
 
-    if ( 0 == Pin.value ) {
+    if (0 == Pin.value) {
         *buzzer_cleared = 1;
 		// after read buzzer cleared, pull it back to high
 		// an workaround for #48623, because gpio 4 & 5 are jointed together
@@ -200,50 +146,20 @@ int xsCPUFanSpeedMapping(FAN_SPEED speed)
 	return iDutyCycle;
 }
 
-#define GPIO_POWER_GOOD	1
-int Broadwellnkv2RedundantPowerGetPowerStatus(POWER_INFO *power_info)
-{
-	int err = -1;
-	int power1_Value = 0, power2_Value = 0;
-
-	if ( 0 != syno_pch_lpc_gpio_pin(BROADWELLNKV2_POWER1_PIN , &power1_Value, 0) ) {
-		goto FAIL;
-	}
-
-	if ( 0 != syno_pch_lpc_gpio_pin(BROADWELLNKV2_POWER2_PIN , &power2_Value, 0) ) {
-		goto FAIL;
-	}
-
-	if (power1_Value == GPIO_POWER_GOOD) {
-		power_info->power_1 = POWER_STATUS_GOOD;
-	}else{
-		power_info->power_1 = POWER_STATUS_BAD;
-	}
-
-	if (power2_Value == GPIO_POWER_GOOD) {
-		power_info->power_2 = POWER_STATUS_GOOD;
-	}else{
-		power_info->power_2 = POWER_STATUS_BAD;
-	}
-
-	err = 0;
-
-FAIL:
-	return err;
-}
-
 static
 int GetFanStatus(int fanno, FAN_STATUS *pStatus)
 {
 	return -1;
 }
 
+static
 int SetFanStatus(FAN_STATUS status, FAN_SPEED speed)
 {
 	int iRet = -1;
 
 	return iRet;
 }
+
 
 static
 int HWMONGetThermalSensorFromADT(SYNO_HWMON_SENSOR_TYPE *SysThermal)
@@ -296,7 +212,47 @@ END:
 	return iRet;
 }
 
-#ifdef CONFIG_SYNO_SMBUS_HDD_POWERCTL
+#ifdef CONFIG_SYNO_HWMON_PMBUS
+int RaptorlakesGetPSUStatusByI2C(SYNO_HWMON_SENSOR_TYPE *psu_status, int iPsuNumber)
+{
+	int iRet = -1;
+
+	if (NULL == hwmon_sensor_list) {
+		goto END;
+	}
+	memcpy(psu_status, hwmon_sensor_list->psu_status,
+		iPsuNumber * sizeof(SYNO_HWMON_SENSOR_TYPE));
+	iRet = HWMONGetPSUStatusByI2C(psu_status, iPsuNumber);
+END:
+	return iRet;
+}
+#endif /* CONFIG_SYNO_HWMON_PMBUS */
+
+#if defined(CONFIG_SYNO_HWMON_PMBUS) || defined(CONFIG_SYNO_SATA_PWR_CTRL_SMBUS)
+int RaptorlakesPmbusGetPowerInfo(POWER_INFO *power_info)
+{
+	int iRet = -1;
+
+	if (NULL == power_info) {
+		printk("%s:%d in %s: parameters error!\n", __FILE__, __LINE__, __FUNCTION__);
+		goto END;
+	}
+
+	if (0 > I2CPmbusReadPowerStatus(0, &(power_info->power_1))) {
+		goto END;
+	}
+	if (0 > I2CPmbusReadPowerStatus(1, &(power_info->power_2))) {
+		goto END;
+	}
+
+	iRet = 0;
+
+END:
+	return iRet;
+}
+#endif /* CONFIG_SYNO_HWMON_PMBUS */
+
+#if defined(CONFIG_SYNO_SMBUS_HDD_POWERCTL) || defined(CONFIG_SYNO_SATA_PWR_CTRL_SMBUS)
 extern void syno_smbus_hdd_powerctl_init(void);
 static
 int HWMONGetHDDBackPlaneStatusBySMBUS(struct _SYNO_HWMON_SENSOR_TYPE *hdd_backplane)
@@ -343,7 +299,7 @@ int HWMONGetHDDBackPlaneStatusBySMBUS(struct _SYNO_HWMON_SENSOR_TYPE *hdd_backpl
 End:
 	return iRet;
 }
-#endif /* CONFIG_SYNO_SMBUS_HDD_POWERCTL */
+#endif /* CONFIG_SYNO_SMBUS_HDD_POWERCTL || CONFIG_SYNO_SATA_PWR_CTRL_SMBUS */
 
 static
 int SetCpuFanStatus(FAN_STATUS status, FAN_SPEED speed)
@@ -353,26 +309,12 @@ int SetCpuFanStatus(FAN_STATUS status, FAN_SPEED speed)
 	return iRet;
 }
 
-static
-int Uninitialize(void)
-{
-	SYNORTCTIMEPKT rtc_time_pkt;
-	rtc_bandon_get_time(&rtc_time_pkt);
-	return 0;
-}
-
 int GetModel(void)
 {
-	int model = MODEL_DS3018xs;
+	int model = MODEL_RS4025xsp;
 
-	if (!strncmp(gszSynoHWVersion, HW_RS4022xsp, strlen(HW_RS4022xsp))) {
-			model = MODEL_RS4022xsp;
-	}else if (!strncmp(gszSynoHWVersion, HW_FS3410, strlen(HW_FS3410))) {
-		model = MODEL_FS3410;
-	}else if (!strncmp(gszSynoHWVersion, HW_SA3410, strlen(HW_SA3410))) {
-		model = MODEL_SA3410;
-	}else if (!strncmp(gszSynoHWVersion, HW_SA3610, strlen(HW_SA3610))) {
-		model = MODEL_SA3610;
+	if (!strncmp(gszSynoHWVersion, HW_RS4025xsp, strlen(HW_RS4025xsp))) {
+			model = MODEL_RS4025xsp;
 	}
 
 	return model;
@@ -389,6 +331,7 @@ int InitModuleType(struct synobios_ops *ops)
 
 	return iRet;
 }
+
 static
 int GetSysTemperature(struct _SynoThermalTemp *pThermalTemp)
 {
@@ -421,31 +364,14 @@ END:
 }
 
 static
-int SetAlarmLed(unsigned char ledON)
+int SetAlarmLed(unsigned char type)
 {
-	GPIO_PIN Pin;
-	int iRet = -1;
+	int iBlinking = 0;
 
-	Pin.pin = BROADWELLNKV2_ALARM_LED_PIN;
-	/**
-	 *	Attetion!!
-	 *	0 Means alarm on
-	 *	1 Means alarm off
-	 *	need to reverse
-	 */
-	if (ledON) {
-		Pin.value = 0;
-	} else {
-		Pin.value = 1;
+	if (type) {
+		iBlinking = 1;
 	}
-
-	if (0 > SetIchGpioPin(&Pin)) {
-		goto End;
-	}
-
-	iRet = 0;
-End:
-	return iRet;
+	return SYNO_CTRL_ALARM_LED_SET(iBlinking);
 }
 
 static
@@ -498,59 +424,48 @@ void GetCPUInfo(SYNO_CPU_INFO *cpu, const unsigned int maxLength)
 
 }
 
-int SetFanStatusMircopWithGPIO(FAN_STATUS status, FAN_SPEED speed)
+static int SetPowerLedStatus(SYNO_LED ledStatus)
 {
-	int iRet = -1;
-	int iFanDuty = -1;
-	char szUartCmd[5] = {0};
+	char szCommand[5] = {0};
+	int iError = -1;
 
-	if( status == FAN_STATUS_STOP ) {
-		speed = FAN_SPEED_STOP;
+        switch(ledStatus){
+		case SYNO_LED_ON:
+			snprintf(szCommand, sizeof(szCommand), "%s", SZ_UART_PWR_LED_ON);
+			break;
+		case SYNO_LED_OFF:
+			snprintf(szCommand, sizeof(szCommand), "%s", SZ_UART_PWR_LED_OFF);
+			break;
+		default:
+			goto ERR;
 	}
 
-	if( FAN_SPEED_PWM_FORMAT_SHIFT <= (int)speed ) {
-		/* PWM format is only for bandon and QC test */
-		iFanDuty = FAN_SPEED_SHIFT_DUTY_GET((int)speed);
-		/* set fan speed hz */
-		if(0 < FAN_SPEED_SHIFT_HZ_GET((int)speed)) {
-			snprintf(szUartCmd, sizeof(szUartCmd), "%s%02d", SZ_UART_FAN_FREQUENCY, FAN_SPEED_SHIFT_HZ_GET((int)speed));
-			if( 0 > SetUart(szUartCmd) ) {
-				goto END;
-			}
-		}
-	} else {
-		if( 0 > (iFanDuty = model_ops->x86_fan_speed_mapping(speed)) ) {
-			printk("No matched fan speed!\n");
-			goto END;
-		}
+	if (0 > SetUart(szCommand)) {
+		goto ERR;
 	}
 
-	/* set fan speed duty cycle  */
-	snprintf(szUartCmd, sizeof(szUartCmd), "%s%02d", SZ_UART_FAN_DUTY_CYCLE, iFanDuty);
-	if( 0 > SetUart(szUartCmd) ) {
-		goto END;
-	}
-
-	iRet = 0;
-END:
-	return iRet;
+	iError = 0;
+ERR:
+	return iError;
 }
 
 static struct synobios_ops synobios_ops = {
 	.owner               = THIS_MODULE,
 	.get_brand           = GetBrand,
 	.get_model           = GetModel,
-	.get_rtc_time        = rtc_bandon_get_time,
-	.set_rtc_time        = rtc_bandon_set_time,
-	.get_auto_poweron	 = rtc_get_auto_poweron,
-	.set_auto_poweron	 = rtc_bandon_set_auto_poweron,
+	.get_rtc_time        = rtc_seiko_get_time,
+	.set_rtc_time        = rtc_seiko_set_time,
+	.get_auto_poweron    = rtc_get_auto_poweron,
+	.set_auto_poweron    = rtc_seiko_set_auto_poweron,
+	.init_auto_poweron   = rtc_seiko_auto_poweron_init,
+	.uninit_auto_poweron = rtc_seiko_auto_poweron_uninit,
 	.get_fan_status      = GetFanStatus,
 	.set_fan_status      = SetFanStatus,
 	.get_sys_temperature = GetSysTemperature,
 	.get_cpu_temperature = GetCpuTemperatureI3Transfer,
 	.set_cpu_fan_status  = SetCpuFanStatus,
-	.get_gpio_pin        = GetIchGpioPin,
-	.set_gpio_pin        = SetIchGpioPin,
+	.get_gpio_pin        = GetGpioPin,
+	.set_gpio_pin        = SetGpioPin,
 	.set_disk_led        = NULL,
 	.set_alarm_led       = SetAlarmLed,
 	.module_type_init    = InitModuleType,
@@ -569,125 +484,45 @@ static struct synobios_ops synobios_ops = {
 	.hwmon_get_backplane_status = NULL,
 };
 
-#ifdef CONFIG_SYNO_HWMON_PMBUS
-int Broadwellnkv2GetPSUStatusByI2C(SYNO_HWMON_SENSOR_TYPE *psu_status, int iPsuNumber)
-{
-	int iRet = -1;
-
-	if (NULL == hwmon_sensor_list) {
-		goto END;
-	}
-	memcpy(psu_status, hwmon_sensor_list->psu_status,
-		iPsuNumber * sizeof(SYNO_HWMON_SENSOR_TYPE));
-	iRet = HWMONGetPSUStatusByI2C(psu_status, iPsuNumber);
-END:
-	return iRet;
-}
-#endif /* CONFIG_SYNO_HWMON_PMBUS */
-
 int synobios_model_init(struct file_operations *fops, struct synobios_ops **ops)
 {
-	int i, maxdisk = 0;
+#ifdef CONFIG_SYNO_AHCI_SOFTWARE_ACITIVITY
+	int i = 0;
+	int maxdisk = 0;
+#endif /* CONFIG_SYNO_AHCI_SOFTWARE_ACITIVITY */
 	*ops = &synobios_ops;
-
-	// for those model that have mix ahci and 9xxx internal disk, please implement GetMaxInternalHostNum
-	GetMaxInternalHostNum = NULL;
 
 	switch(GetModel())
 	{
-		case MODEL_RS4022xsp:
-			model_ops = &rs4022xsp_ops;
-#ifdef CONFIG_SYNO_ADT7490_FEATURES
+		case MODEL_RS4025xsp:
+			model_ops = &rs4025xsp_ops;
+			synobios_ops.set_power_led = SetPowerLedStatus;
+			hwmon_sensor_list = &rs4025xsp_sensor_list;
 			synobios_ops.hwmon_get_fan_speed_rpm = HWMONGetFanSpeedRPMFromADT;
 			synobios_ops.hwmon_get_sys_voltage = HWMONGetVoltageSensorFromADT;
 			synobios_ops.hwmon_get_sys_thermal = HWMONGetThermalSensorFromADT;
-#endif /* CONFIG_SYNO_ADT7490_FEATURES */
-			break;
-		case MODEL_FS3410:
-			model_ops = &fs3410_ops;
-			FS3410SMBusSwitchInit();
-			hwmon_sensor_list = &fs3410_sensor_list;
-#ifdef CONFIG_SYNO_ADT7490_FEATURES
-			synobios_ops.hwmon_get_fan_speed_rpm = HWMONGetFanSpeedRPMFromADT;
-			synobios_ops.hwmon_get_sys_voltage = HWMONGetVoltageSensorFromADT;
-			synobios_ops.hwmon_get_sys_thermal = HWMONGetThermalSensorFromADT;
-#endif /* CONFIG_SYNO_ADT7490_FEATURES */
-#ifdef CONFIG_SYNO_HWMON_PMBUS
-			synobios_ops.hwmon_get_psu_status = Broadwellnkv2GetPSUStatusByI2C;
-#endif /* CONFIG_SYNO_HWMON_PMBUS */
-#ifdef CONFIG_SYNO_SMBUS_HDD_POWERCTL
-			g_smbus_hdd_powerctl = 1;
+#if defined(CONFIG_SYNO_SMBUS_HDD_POWERCTL) || defined(CONFIG_SYNO_SATA_PWR_CTRL_SMBUS)
 			synobios_ops.hwmon_get_backplane_status = HWMONGetHDDBackPlaneStatusBySMBUS;
-#endif /* CONFIG_SYNO_SMBUS_HDD_POWERCTL */
+#endif /* CONFIG_SYNO_SMBUS_HDD_POWERCTL || CONFIG_SYNO_SATA_PWR_CTRL_SMBUS */
 			synobios_ops.set_hdd_led = SetHddActLedByLedTrigger;
 #ifdef CONFIG_SYNO_LEDS_TRIGGER
 			synobios_ops.set_disk_led = SetDiskLedStatusByLedTrigger;
 			SetupDiskLedMap();
 #ifdef MY_DEF_HERE
 			funcSYNOSATADiskLedCtrl = SYNOSetDiskLedStatusByLedTrigger;
-#endif // MY_DEF_HERE
-#endif // CONFIG_SYNO_LEDS_TRIGGER
+#endif /* MY_DEF_HERE */
+#endif /* CONFIG_SYNO_LEDS_TRIGGER */
+#ifdef CONFIG_SYNO_HWMON_PMBUS
+			synobios_ops.hwmon_get_psu_status = RaptorlakesGetPSUStatusByI2C;
+#endif /* CONFIG_SYNO_HWMON_PMBUS */
 #ifdef CONFIG_SYNO_AHCI_SOFTWARE_ACITIVITY
 			maxdisk = GetMaxInternalDiskNum();
 			for (i = 1; i <= maxdisk; ++i) {
 				syno_ahci_disk_led_enable_by_port(i, 1);
 			}
-#endif
-			break;
-		case MODEL_SA3410:
-			model_ops = &sa3410_ops;
-			hwmon_sensor_list = &sa3410_sensor_list;
-#ifdef CONFIG_SYNO_ADT7490_FEATURES
-			synobios_ops.hwmon_get_fan_speed_rpm = HWMONGetFanSpeedRPMFromADT;
-			synobios_ops.hwmon_get_sys_voltage = HWMONGetVoltageSensorFromADT;
-			synobios_ops.hwmon_get_sys_thermal = HWMONGetThermalSensorFromADT;
-#endif /* CONFIG_SYNO_ADT7490_FEATURES */
-#ifdef CONFIG_SYNO_HWMON_PMBUS
-			synobios_ops.hwmon_get_psu_status = Broadwellnkv2GetPSUStatusByI2C;
-#endif /* CONFIG_SYNO_HWMON_PMBUS */
-#ifdef CONFIG_SYNO_SMBUS_HDD_POWERCTL
-			synobios_ops.hwmon_get_backplane_status = HWMONGetHDDBackPlaneStatusBySMBUS;
-#endif /* CONFIG_SYNO_SMBUS_HDD_POWERCTL */
-			if (syno_is_hw_revision(HW_R1)) {
-				synobios_ops.set_hdd_led = SetHddActLedByLedTrigger;
-#ifdef CONFIG_SYNO_LEDS_TRIGGER
-				synobios_ops.set_disk_led = SetDiskLedStatusByLedTrigger;
-				SetupDiskLedMap();
-#endif // CONFIG_SYNO_LEDS_TRIGGER
-			} else {
-#ifdef CONFIG_SYNO_SAS_HOST_DISK_LED_CTRL
-				if (NULL != syno_valid_lsi3008_led) {
-					synobios_ops.set_hdd_led = syno_valid_lsi3008_led;
-				}
-#endif /* CONFIG_SYNO_SAS_HOST_DISK_LED_CTRL */
-			}
-			break;
-		case MODEL_SA3610:
-			model_ops = &sa3610_ops;
-			hwmon_sensor_list = &sa3610_sensor_list;
-#ifdef CONFIG_SYNO_ADT7490_FEATURES
-			synobios_ops.hwmon_get_fan_speed_rpm = HWMONGetFanSpeedRPMFromADT;
-			synobios_ops.hwmon_get_sys_voltage = HWMONGetVoltageSensorFromADT;
-			synobios_ops.hwmon_get_sys_thermal = HWMONGetThermalSensorFromADT;
-#endif /* CONFIG_SYNO_ADT7490_FEATURES */
-#ifdef CONFIG_SYNO_HWMON_PMBUS
-			synobios_ops.hwmon_get_psu_status = Broadwellnkv2GetPSUStatusByI2C;
-#endif /* CONFIG_SYNO_HWMON_PMBUS */
-#ifdef CONFIG_SYNO_SMBUS_HDD_POWERCTL
-			synobios_ops.hwmon_get_backplane_status = HWMONGetHDDBackPlaneStatusBySMBUS;
-#endif /* CONFIG_SYNO_SMBUS_HDD_POWERCTL */
-			if (syno_is_hw_revision(HW_R1)) {
-				synobios_ops.set_hdd_led = SetHddActLedByLedTrigger;
-#ifdef CONFIG_SYNO_LEDS_TRIGGER
-				synobios_ops.set_disk_led = SetDiskLedStatusByLedTrigger;
-				SetupDiskLedMap();
-#endif // CONFIG_SYNO_LEDS_TRIGGER
-			} else {
-#ifdef CONFIG_SYNO_SAS_HOST_DISK_LED_CTRL
-				if (NULL != syno_valid_lsi3008_led) {
-					synobios_ops.set_hdd_led = syno_valid_lsi3008_led;
-				}
-#endif /* CONFIG_SYNO_SAS_HOST_DISK_LED_CTRL */
+#endif /* CONFIG_SYNO_AHCI_SOFTWARE_ACITIVITY */
+			if ( model_ops->x86_gpio_init ) {
+				model_ops->x86_gpio_init();
 			}
 			break;
 		default:
@@ -697,8 +532,25 @@ int synobios_model_init(struct file_operations *fops, struct synobios_ops **ops)
 	return 0;
 }
 
+static int Uninitialize(void)
+{
+	SYNORTCTIMEPKT rtc_time_pkt;
+
+	if (synobios_ops.get_rtc_time) {
+		synobios_ops.get_rtc_time(&rtc_time_pkt);
+	}
+
+	if (synobios_ops.uninit_auto_poweron) {
+		synobios_ops.uninit_auto_poweron();
+	}
+	return 0;
+}
+
 int synobios_model_cleanup(struct file_operations *fops, struct synobios_ops **ops)
 {
+	if ( model_ops->x86_gpio_cleanup ) {
+		model_ops->x86_gpio_cleanup();
+	}
 	return 0;
 }
 
@@ -741,28 +593,3 @@ int I2CSmbusReadPowerStatus(int i2c_bus_no, u16 i2c_addr, SYNO_POWER_STATUS* sta
 FAIL:
 	return ret;
 }
-
-#ifdef CONFIG_SYNO_HWMON_PMBUS
-// Portmappingv2 method to get PSU status
-int redundantPowerGetPowerStatusByI2C(POWER_INFO *power_info)
-{
-    int iRet = -1;
-
-    if (NULL == power_info) {
-        printk("%s:%d in %s: parameters error!\n", __FILE__, __LINE__, __FUNCTION__);
-        goto END;
-    }
-
-    if (0 > I2CPmbusReadPowerStatus(0, &(power_info->power_1))) {
-        goto END;
-    }
-    if (0 > I2CPmbusReadPowerStatus(1, &(power_info->power_2))) {
-        goto END;
-    }
-
-    iRet = 0;
-
-END:
-    return iRet;
-}
-#endif /* CONFIG_SYNO_HWMON_PMBUS */
