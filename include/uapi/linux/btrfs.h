@@ -1563,10 +1563,6 @@ enum btrfs_err_code {
 };
 #ifdef __KERNEL__
 #ifdef MY_ABC_HERE
-long btrfs_lazy_clone(struct file *file, unsigned long srcfd, u64 off,
-	u64 olen, u64 destoff);
-#endif /* MY_ABC_HERE */
-#ifdef MY_ABC_HERE
 int btrfs_vfs_ino_to_path(struct inode *inode, u64 inum, char *outpath, int len);
 #endif /* MY_ABC_HERE */
 #ifdef MY_ABC_HERE

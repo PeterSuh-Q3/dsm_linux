@@ -40,10 +40,10 @@
 #endif /* MY_ABC_HERE */
 #include <linux/kobject.h>
 
-#ifdef MY_ABC_HERE
-extern void syno_device_not_ready_set(const char *);
-extern void syno_device_not_ready_clear(const char *);
-#endif /* MY_ABC_HERE */
+#ifdef MY_DEF_HERE
+extern void syno_usb_eunit_not_ready_set(const char *);
+extern void syno_usb_eunit_not_ready_clear(const char *);
+#endif /* MY_DEF_HERE */
 
 #include <linux/uaccess.h>
 #include <asm/byteorder.h>
@@ -1373,9 +1373,9 @@ static void hub_activate(struct usb_hub *hub, enum hub_activation_type type)
 		 * for HUB_POST_RESET, but it's easier not to.
 		 */
 		if (type == HUB_INIT) {
-#ifdef MY_ABC_HERE
-			syno_device_not_ready_set(dev_name(hub->intfdev));
-#endif /* MY_ABC_HERE */
+#ifdef MY_DEF_HERE
+			syno_usb_eunit_not_ready_set(dev_name(hub->intfdev));
+#endif /* MY_DEF_HERE */
 			delay = hub_power_on_good_delay(hub);
 
 			hub_power_on(hub, false);
@@ -6537,9 +6537,9 @@ static void hub_event(struct work_struct *work)
 		}
 	}
 
-#ifdef MY_ABC_HERE
-	syno_device_not_ready_clear(dev_name(hub->intfdev));
-#endif /* MY_ABC_HERE */
+#ifdef MY_DEF_HERE
+	syno_usb_eunit_not_ready_clear(dev_name(hub->intfdev));
+#endif /* MY_DEF_HERE */
 out_autopm:
 	/* Balance the usb_autopm_get_interface() above */
 	usb_autopm_put_interface_no_suspend(intf);
