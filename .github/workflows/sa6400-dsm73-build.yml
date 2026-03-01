@@ -1,12 +1,19 @@
 name: Build SA6400 DSM 7.3 Kernel (via dsm_linux)
+#".github/workflows/sa6400-dsm73-build.yml"
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - ".github/workflows/sa6400-dsm73-build.yml"
-      - "configs/**"
-      - "patches/**"
+    inputs:
+      # 수동 실행 시 옵션을 넣고 싶다면 아래처럼 정의
+      build_type:
+        description: 'Build type: zImage, modules, or all'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - 'zImage'
+          - 'modules'
+          - 'all'
 
 jobs:
   build-sa6400-dsm73:
