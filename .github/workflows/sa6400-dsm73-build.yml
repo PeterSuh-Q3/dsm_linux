@@ -1,0 +1,173 @@
+name: Build SA6400 DSM 7.3 Kernel
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/sa6400-dsm73-build.yml"
+      - "configs/**"
+      - "patches/**"
+
+jobs:
+  build-sa6400-dsm73:
+    runs-on: ubuntu-latest
+
+    env:
+      # 타깃 정보
+      DSM_VERSION: "7.3"
+      PLATFORM: "epyc7002"
+
+      # 실제 Synology archive 또는 내부 미러 URL로 교체해야 하는 부분
+      # 예시는 7.2 epyc7002 툴체인 경로 포맷을 참고한 것이며, 7.3에 맞게 직접 수정 필요
+      TOOLCHAIN_URL: "https://global.synologydownload.com/download/ToolChain/toolchain/7.3-86009/AMD%20x86%20Linux%20Linux%205.10.55%20%28epyc7002%29/epyc7002-gcc1220_glibc236_x86_64-GPL.txz"
+      GPL_URL: "https://archive.synology.com/path/to/linux-5.10.x-syno-epyc7002.txz"
+
+      # 워크 디렉터리
+      TOOLCHAIN_DIR: "${{ github.workspace }}/toolchain"
+      KERNEL_SRC_DIR: "${{ github.workspace }}/kernel-src"
+      BUILD_OUTPUT_DIR: "${{ github.workspace }}/build-output"
+
+      # 리포지토리 안에 준비해 둘 SA6400 DSM 7.3용 설정/심볼 파일 경로
+      KERNEL_CONFIG_PATH: "${{ github.workspace }}/configs/sa6400_dsm73.config"
+      MODULE_SYMVERS_PATH: "${{ github.workspace }}/configs/sa6400_dsm73.Module.symvers"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            bc \
+            libncurses5-dev \
+            libssl-dev \
+            cpio \
+            xz-utils \
+            flex \
+            bison \
+            wget \
+            tar \
+            python3 \
+            git
+
+      - name: Download Synology epyc7002 toolchain and DSM 7.3 GPL kernel
+        run: |
+          set -eux
+
+          mkdir -p "$TOOLCHAIN_DIR" "$KERNEL_SRC_DIR" downloads
+          cd downloads
+
+          echo "==> Downloading toolchain from $TOOLCHAIN_URL"
+          wget -O toolchain.txz "$TOOLCHAIN_URL"
+
+          echo "==> Downloading GPL kernel source from $GPL_URL"
+          wget -O linux-gpl.txz "$GPL_URL"
+
+          echo "==> Extracting toolchain..."
+          tar -Jxf toolchain.txz -C "$TOOLCHAIN_DIR"
+
+          echo "==> Extracting GPL kernel source..."
+          tar -Jxf linux-gpl.txz -C "$KERNEL_SRC_DIR"
+
+      - name: Locate toolchain and kernel source
+        id: locate
+        run: |
+          set -eux
+
+          # x86_64-pc-linux-gnu-gcc 위치 자동 탐색 (epyc7002 툴체인 구조 기준)
+          TOOLCHAIN_GCC_BIN="$(find "$TOOLCHAIN_DIR" -maxdepth 4 -type f -name 'x86_64-pc-linux-gnu-gcc' | head -n 1 || true)"
+
+          if [ -z "$TOOLCHAIN_GCC_BIN" ]; then
+            echo "x86_64-pc-linux-gnu-gcc not found under $TOOLCHAIN_DIR"
+            exit 1
+          fi
+
+          TOOLCHAIN_BIN_DIR="$(dirname "$TOOLCHAIN_GCC_BIN")"
+          CROSS_COMPILE_PREFIX="$(basename "$TOOLCHAIN_GCC_BIN" | sed 's/gcc$//')"
+
+          echo "TOOLCHAIN_BIN_DIR=$TOOLCHAIN_BIN_DIR" >> "$GITHUB_OUTPUT"
+          echo "CROSS_COMPILE_PREFIX=$CROSS_COMPILE_PREFIX" >> "$GITHUB_OUTPUT"
+
+          # linux-5.10.x-syno-* 또는 linux-5.10.* 디렉터리 자동 탐색
+          KERNEL_TREE="$(find "$KERNEL_SRC_DIR" -maxdepth 2 -type d \( -name 'linux-5.10*' -o -name 'linux-*epyc7002*' \) | head -n 1 || true)"
+
+          if [ -z "$KERNEL_TREE" ]; then
+            echo "Linux kernel source directory not found under $KERNEL_SRC_DIR"
+            exit 1
+          fi
+
+          echo "KERNEL_TREE=$KERNEL_TREE" >> "$GITHUB_OUTPUT"
+
+      - name: Build zImage and modules for SA6400 (epyc7002)
+        run: |
+          set -eux
+
+          TOOLCHAIN_BIN_DIR="${{ steps.locate.outputs.TOOLCHAIN_BIN_DIR }}"
+          CROSS_COMPILE_PREFIX="${{ steps.locate.outputs.CROSS_COMPILE_PREFIX }}"
+          KERNEL_TREE="${{ steps.locate.outputs.KERNEL_TREE }}"
+
+          echo "==> Using toolchain from: $TOOLCHAIN_BIN_DIR"
+          echo "==> Kernel tree: $KERNEL_TREE"
+
+          export PATH="$TOOLCHAIN_BIN_DIR:$PATH"
+          export ARCH=x86_64
+          export CROSS_COMPILE="$CROSS_COMPILE_PREFIX"
+
+          cd "$KERNEL_TREE"
+
+          # SA6400 DSM 7.3에서 추출한 .config / Module.symvers 를 우선 사용
+          if [ -f "$KERNEL_CONFIG_PATH" ]; then
+            echo "==> Copying pre-saved SA6400 DSM 7.3 .config"
+            cp "$KERNEL_CONFIG_PATH" .config
+          fi
+
+          if [ -f "$MODULE_SYMVERS_PATH" ]; then
+            echo "==> Copying pre-saved Module.symvers"
+            cp "$MODULE_SYMVERS_PATH" Module.symvers
+          fi
+
+          # Synology 설정 기준으로 구성
+          make olddefconfig
+
+          # 필요하면 여기에서 패치 적용 (예: patches/*.patch)
+          if ls "${GITHUB_WORKSPACE:-$PWD}/patches"/*.patch >/dev/null 2>&1; then
+            echo "==> Applying local patches..."
+            for p in "${GITHUB_WORKSPACE:-$PWD}"/patches/*.patch; do
+              echo "Applying $p"
+              patch -p1 < "$p"
+            done
+          fi
+
+          # 커널 및 모듈 빌드
+          make -j"$(nproc)" zImage
+          make -j"$(nproc)" modules
+
+          # 결과물 수집
+          mkdir -p "$BUILD_OUTPUT_DIR/modules"
+
+          # zImage 위치는 arch/x86/boot/bzImage, zImage 등 Synology 패치에 따라 달라질 수 있음.
+          # 일반적인 x86_64 커널 기준으로 bzImage를 export.
+          if [ -f "arch/x86/boot/bzImage" ]; then
+            cp arch/x86/boot/bzImage "$BUILD_OUTPUT_DIR/zImage-sa6400-dsm73"
+          elif [ -f "arch/x86/boot/zImage" ]; then
+            cp arch/x86/boot/zImage "$BUILD_OUTPUT_DIR/zImage-sa6400-dsm73"
+          else
+            echo "zImage/bzImage not found; please check kernel tree layout."
+            exit 1
+          fi
+
+          # 모듈 전체 설치 후 tar로 묶기
+          make modules_install INSTALL_MOD_PATH="$BUILD_OUTPUT_DIR/modules_root"
+
+          cd "$BUILD_OUTPUT_DIR"
+          tar -C modules_root -czf modules-sa6400-dsm73.tar.gz lib
+
+      - name: Upload artifacts (zImage and modules)
+        uses: actions/upload-artifact@v4
+        with:
+          name: sa6400-dsm73-kernel
+          path: |
+            ${{ env.BUILD_OUTPUT_DIR }}/zImage-sa6400-dsm73
+            ${{ env.BUILD_OUTPUT_DIR }}/modules-sa6400-dsm73.tar.gz
