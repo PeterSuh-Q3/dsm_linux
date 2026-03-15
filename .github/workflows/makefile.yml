@@ -19,15 +19,15 @@ jobs:
       matrix:
         include:
           # 1) DSM 7.2 epyc7002
-          - dsm_version: "7.2"
-            platform: "epyc7002"
-            kernel_ver: "5.10.55"
-            dsm_linux_branch: "epyc7002-7.2-5.10.55"
-            toolchain_key: "toolchain-epyc7002-7.2-72806"
-            toolchain_url: "https://global.synologydownload.com/download/ToolChain/toolchain/7.2-72806/AMD%20x86%20Linux%20Linux%205.10.55%20%28epyc7002%29/epyc7002-gcc1220_glibc236_x86_64-GPL.txz"
-            defines_url: "https://raw.githubusercontent.com/PeterSuh-Q3/arpl-modules/main/src/5.x/defines.epyc7002.custom"
-            kernel_config_path: "configs/sa6400_dsm72.config"
-            module_symvers_path: "configs/sa6400_dsm72.Module.symvers"
+          #- dsm_version: "7.2"
+          #  platform: "epyc7002"
+          #  kernel_ver: "5.10.55"
+          #  dsm_linux_branch: "epyc7002-7.2-5.10.55"
+          #  toolchain_key: "toolchain-epyc7002-7.2-72806"
+          #  toolchain_url: "https://global.synologydownload.com/download/ToolChain/toolchain/7.2-72806/AMD%20x86%20Linux%20Linux%205.10.55%20%28epyc7002%29/epyc7002-gcc1220_glibc236_x86_64-GPL.txz"
+          #  defines_url: "https://raw.githubusercontent.com/PeterSuh-Q3/arpl-modules/main/src/5.x/defines.epyc7002.custom"
+          #  kernel_config_path: "configs/sa6400_dsm72.config"
+          #  module_symvers_path: "configs/sa6400_dsm72.Module.symvers"
 
           # 2) DSM 7.3 epyc7002
           - dsm_version: "7.3"
