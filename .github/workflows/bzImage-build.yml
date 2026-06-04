@@ -130,13 +130,13 @@ jobs:
 
           cd "$KERNEL_TREE"
 
-          # ✅ synology/certs 디렉토리 생성 및 필수 인증서 파일 생성
-          # 이 파일들은 GPL 소스에 미포함되지만 빌드 시스템에서 요구됨
+          make mrproper
+
+          # ✅ synology/certs 디렉토리 생성 및 필수 인증서 파일 생성 (mrproper 이후에 위치)
+          # make mrproper가 해당 파일들을 삭제하므로 반드시 이후에 생성해야 함
           mkdir -p synology/certs
           touch synology/certs/trusted_certificates.pem
           touch synology/certs/signing_key.pem
-
-          make mrproper
 
           # ✅ .config 직접 synology/synoconfigs에서 사용
           if [ ! -f "synology/synoconfigs/${{ matrix.platform }}" ]; then
