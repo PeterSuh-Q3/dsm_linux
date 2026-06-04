@@ -1,4 +1,4 @@
-name: Build DSM bzImage Only
+name: Build DSM bzImage Only (All Platforms)
 
 on:
   workflow_dispatch:
@@ -11,18 +11,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # 1) DSM 7.2 epyc7002
-          #- dsm_version: "7.2"
-          #  platform: "epyc7002"
-          #  kernel_ver: "5.10.55"
-          #  dsm_linux_branch: "epyc7002-7.2-5.10.55"
-          #  toolchain_key: "toolchain-epyc7002-7.2-72806"
-          #  toolchain_url: "https://global.synologydownload.com/download/ToolChain/toolchain/7.2-72806/AMD%20x86%20Linux%20Linux%205.10.55%20%28epyc7002%29/epyc7002-gcc1220_glibc236_x86_64-GPL.txz"
-          #  defines_url: "https://raw.githubusercontent.com/PeterSuh-Q3/arpl-modules/main/src/5.x/defines.epyc7002.custom"
-          #  kernel_config_path: "configs/sa6400_dsm72.config"
-          #  module_symvers_path: "configs/sa6400_dsm72.Module.symvers"
-
-          # 2) DSM 7.3 epyc7002
+          # 1) DSM 7.3 epyc7002
           - dsm_version: "7.3"
             platform: "epyc7002"
             kernel_ver: "5.10.55"
@@ -32,7 +21,7 @@ jobs:
             defines_url: "https://raw.githubusercontent.com/PeterSuh-Q3/arpl-modules/main/src/5.x/defines.epyc7002.custom"
             kernel_config_path: "configs/sa6400_dsm73.config"
 
-          # 3) DSM 7.3 geminilakenk
+          # 2) DSM 7.3 geminilakenk
           - dsm_version: "7.3"
             platform: "geminilakenk"
             kernel_ver: "5.10.55"
@@ -42,7 +31,7 @@ jobs:
             defines_url: "https://raw.githubusercontent.com/PeterSuh-Q3/arpl-modules/main/src/5.x/defines.geminilakenk.custom"
             kernel_config_path: "configs/geminilakenk_dsm73.config"
 
-          # 4) DSM 7.3 r1000nk
+          # 3) DSM 7.3 r1000nk
           - dsm_version: "7.3"
             platform: "r1000nk"
             kernel_ver: "5.10.55"
@@ -52,7 +41,7 @@ jobs:
             defines_url: "https://raw.githubusercontent.com/PeterSuh-Q3/arpl-modules/main/src/5.x/defines.r1000nk.custom"
             kernel_config_path: "configs/r1000nk_dsm73.config"
 
-          # 5) DSM 7.3 v1000nk
+          # 4) DSM 7.3 v1000nk
           - dsm_version: "7.3"
             platform: "v1000nk"
             kernel_ver: "5.10.55"
@@ -69,9 +58,6 @@ jobs:
       BUILD_OUTPUT_DIR: "${{ github.workspace }}/build-output"
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
       - name: Install build dependencies
         run: |
           sudo apt-get update
@@ -95,7 +81,7 @@ jobs:
           wget -O toolchain.txz "${{ matrix.toolchain_url }}"
           tar -Jxf toolchain.txz -C "$TOOLCHAIN_DIR"
 
-      - name: Clone dsm_linux (shallow)
+      - name: Clone dsm_linux (specific branch)
         run: |
           set -eux
           rm -rf "$KERNEL_SRC_DIR"
