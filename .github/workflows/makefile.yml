@@ -105,6 +105,9 @@ jobs:
           echo "KERNEL_TREE=$KERNEL_SRC_DIR" >> "$GITHUB_OUTPUT"
 
       - name: Build bzImage and modules DSM
+        env:
+          KBUILD_BUILD_USER: "PeterSuh-Q3"
+          KBUILD_BUILD_HOST: "MSHELL"
         run: |
           set -eux
           mkdir -p "$BUILD_OUTPUT_DIR"
@@ -116,6 +119,8 @@ jobs:
           export PATH="$TOOLCHAIN_BIN_DIR:$PATH"
           export ARCH=x86_64
           export CROSS_COMPILE="$CROSS_COMPILE_PREFIX"
+          export KBUILD_BUILD_USER="${{ env.KBUILD_BUILD_USER }}"
+          export KBUILD_BUILD_HOST="${{ env.KBUILD_BUILD_HOST }}"
 
           cd "$KERNEL_TREE"
 
