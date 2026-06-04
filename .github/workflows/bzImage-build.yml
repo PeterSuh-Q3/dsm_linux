@@ -58,7 +58,8 @@ jobs:
 
     env:
       DSM_LINUX_REPO: "https://github.com/PeterSuh-Q3/dsm_linux.git"
-      TOOLCHAIN_DIR: "${{ runner.temp }}/toolchain"
+      # ✅ FIX: runner.temp은 job-level env에서 사용 불가 → $RUNNER_TEMP 환경변수 사용
+      TOOLCHAIN_DIR: "$RUNNER_TEMP/toolchain"
       KERNEL_SRC_DIR: "${{ github.workspace }}/dsm_linux"
       BUILD_OUTPUT_DIR: "${{ github.workspace }}/build-output"
 
@@ -74,34 +75,40 @@ jobs:
         id: cache-toolchain
         uses: actions/cache@v4
         with:
-          path: ${{ env.TOOLCHAIN_DIR }}
+          # ✅ with: 블록에서는 runner.temp 컨텍스트 직접 사용 가능
+          path: ${{ runner.temp }}/toolchain
           key: ${{ matrix.toolchain_key }}
 
       - name: Download Synology toolchain
         if: steps.cache-toolchain.outputs.cache-hit != 'true'
         run: |
           set -eux
-          mkdir -p "$TOOLCHAIN_DIR" downloads
-          cd downloads
-          wget -O toolchain.txz "${{ matrix.toolchain_url }}"
-          tar -Jxf toolchain.txz -C "$TOOLCHAIN_DIR"
+          mkdir -p "$TOOLCHAIN_DIR"
+          wget -O /tmp/toolchain.txz "${{ matrix.toolchain_url }}"
+          tar -Jxf /tmp/toolchain.txz -C "$TOOLCHAIN_DIR"
+          rm -f /tmp/toolchain.txz
 
       - name: Clone dsm_linux (specific branch)
         run: |
           set -eux
           rm -rf "$KERNEL_SRC_DIR"
-          git clone --depth 1 --single-branch -b "${{ matrix.dsm_linux_branch }}" \
+          git clone --depth 1 --single-branch \
+            -b "${{ matrix.dsm_linux_branch }}" \
             "$DSM_LINUX_REPO" "$KERNEL_SRC_DIR"
 
       - name: Locate toolchain and kernel source
         id: locate
         run: |
           set -eux
-          TOOLCHAIN_GCC_BIN="$(find "$TOOLCHAIN_DIR" -maxdepth 6 -type f -name 'x86_64-pc-linux-gnu-gcc' | head -n 1 || true)"
+          TOOLCHAIN_GCC_BIN="$(find "$TOOLCHAIN_DIR" -maxdepth 6 -type f \
+            -name 'x86_64-pc-linux-gnu-gcc' | head -n 1 || true)"
           if [ -z "$TOOLCHAIN_GCC_BIN" ]; then
-            echo "x86_64-pc-linux-gnu-gcc not found under $TOOLCHAIN_DIR"
+            echo "ERROR: x86_64-pc-linux-gnu-gcc not found under $TOOLCHAIN_DIR"
+            echo "Available binaries in toolchain:"
+            find "$TOOLCHAIN_DIR" -maxdepth 6 -type f -name '*gcc*' || true
             exit 1
           fi
+          echo "Found GCC: $TOOLCHAIN_GCC_BIN"
           echo "TOOLCHAIN_BIN_DIR=$(dirname "$TOOLCHAIN_GCC_BIN")" >> "$GITHUB_OUTPUT"
           echo "CROSS_COMPILE_PREFIX=$(basename "$TOOLCHAIN_GCC_BIN" | sed 's/gcc$//')" >> "$GITHUB_OUTPUT"
           echo "KERNEL_TREE=$KERNEL_SRC_DIR" >> "$GITHUB_OUTPUT"
@@ -128,12 +135,23 @@ jobs:
 
           make mrproper
 
-          # .config 설정 (.config is all that's needed for bzImage)
-          if [ -f "${{ github.workspace }}/${{ matrix.kernel_config_path }}" ]; then
-            cp "${{ github.workspace }}/${{ matrix.kernel_config_path }}" .config
+          # ✅ FIX: .config 탐색 경로를 KERNEL_TREE 기준으로 수정
+          # (configs/*.config 파일은 dsm_linux 레포 내부에 위치)
+          if [ -f "$KERNEL_TREE/${{ matrix.kernel_config_path }}" ]; then
+            echo "Using config: $KERNEL_TREE/${{ matrix.kernel_config_path }}"
+            cp "$KERNEL_TREE/${{ matrix.kernel_config_path }}" .config
           fi
           if [ ! -f ".config" ] && [ -f "synology/synoconfigs/${{ matrix.platform }}" ]; then
+            echo "Fallback: using synology/synoconfigs/${{ matrix.platform }}"
             cp "synology/synoconfigs/${{ matrix.platform }}" .config
+          fi
+
+          # ✅ FIX: .config 없으면 빌드 실패로 명시 처리
+          if [ ! -f ".config" ]; then
+            echo "ERROR: No .config found! Checked:"
+            echo "  $KERNEL_TREE/${{ matrix.kernel_config_path }}"
+            echo "  synology/synoconfigs/${{ matrix.platform }}"
+            exit 1
           fi
 
           # olddefconfig to validate .config
@@ -160,25 +178,26 @@ jobs:
           # 최종 반영
           make olddefconfig
 
-          # bzImage 빌드 (with GCC warning suppression for objtool host tools)
+          # ✅ FIX: HOSTCC/HOSTCXX에 직접 플래그 주입
+          # (GCC 13+ 기준 objtool 빌드 시 use-after-free/array-bounds 오류 방지)
           make -j"$(nproc)" \
-            CFLAGS="-Wno-use-after-free" \
-            CXXFLAGS="-Wno-use-after-free" \
+            HOSTCC="gcc -Wno-error=use-after-free -Wno-error=array-bounds -Wno-error=dangling-pointer" \
+            HOSTCXX="g++ -Wno-error=use-after-free -Wno-error=array-bounds" \
             EXTRA_CFLAGS="-Wno-error=use-after-free" \
-            HOSTCFLAGS="-Wno-error=use-after-free" \
-            HOSTCXXFLAGS="-Wno-error=use-after-free" \
             bzImage
 
           # 결과물 파일명에 matrix 포함
           OUT_TAG="${{ matrix.platform }}-${{ matrix.dsm_version }}-${{ matrix.kernel_ver }}"
 
           # bzImage 패키징
-          if [ -f "arch/x86/boot/zImage" ]; then
-            cp "arch/x86/boot/zImage" "$BUILD_OUTPUT_DIR/bzImage-${OUT_TAG}"
-          else
+          if [ -f "arch/x86/boot/bzImage" ]; then
             cp "arch/x86/boot/bzImage" "$BUILD_OUTPUT_DIR/bzImage-${OUT_TAG}"
+          else
+            echo "ERROR: arch/x86/boot/bzImage not found after build!"
+            exit 1
           fi
           gzip -9 "$BUILD_OUTPUT_DIR/bzImage-${OUT_TAG}"
+          echo "Build complete: $BUILD_OUTPUT_DIR/bzImage-${OUT_TAG}.gz"
 
       - name: Upload bzImage artifacts
         uses: actions/upload-artifact@v4
@@ -186,4 +205,4 @@ jobs:
           name: kernel-${{ matrix.platform }}-${{ matrix.dsm_version }}
           path: |
             ${{ env.BUILD_OUTPUT_DIR }}/bzImage-${{ matrix.platform }}-${{ matrix.dsm_version }}-${{ matrix.kernel_ver }}.gz
-          if-no-files-found: ignore
+          if-no-files-found: error
