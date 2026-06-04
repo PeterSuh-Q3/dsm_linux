@@ -58,7 +58,7 @@ jobs:
 
     env:
       DSM_LINUX_REPO: "https://github.com/PeterSuh-Q3/dsm_linux.git"
-      TOOLCHAIN_DIR: "${{ github.workspace }}/toolchain"
+      TOOLCHAIN_DIR: "${{ runner.temp }}/toolchain"
       KERNEL_SRC_DIR: "${{ github.workspace }}/dsm_linux"
       BUILD_OUTPUT_DIR: "${{ github.workspace }}/build-output"
 
