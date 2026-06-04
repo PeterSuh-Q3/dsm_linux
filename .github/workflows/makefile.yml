@@ -178,12 +178,11 @@ jobs:
 
           # build_type 분기 (with GCC warning suppression for objtool)
           BUILD_TYPE="${{ github.event.inputs.build_type }}"
-          GCC_FLAGS="CFLAGS='-Wno-use-after-free' CXXFLAGS='-Wno-use-after-free'"
           if [ "$BUILD_TYPE" = "bzImage" ] || [ "$BUILD_TYPE" = "all" ]; then
-            make -j"$(nproc)" $GCC_FLAGS bzImage
+            make -j"$(nproc)" CFLAGS='-Wno-use-after-free' CXXFLAGS='-Wno-use-after-free' bzImage
           fi
           if [ "$BUILD_TYPE" = "modules" ] || [ "$BUILD_TYPE" = "all" ]; then
-            make -j"$(nproc)" $GCC_FLAGS modules
+            make -j"$(nproc)" CFLAGS='-Wno-use-after-free' CXXFLAGS='-Wno-use-after-free' modules
           fi
 
           # 결과물 파일명에 matrix 포함(충돌 방지)
