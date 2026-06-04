@@ -1,0 +1,189 @@
+name: Build DSM bzImage Only (Pilot r1000nk Platform)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # 1) DSM 7.3 epyc7002
+          #- dsm_version: "7.3"
+          #  platform: "epyc7002"
+          #  kernel_ver: "5.10.55"
+          #  dsm_linux_branch: "epyc7002-7.3-5.10.55"
+          #  toolchain_key: "toolchain-epyc7002-7.3-86009"
+          #  toolchain_url: "https://global.synologydownload.com/download/ToolChain/toolchain/7.3-86009/AMD%20x86%20Linux%20Linux%205.10.55%20%28epyc7002%29/epyc7002-gcc1220_glibc236_x86_64-GPL.txz"
+
+          # 2) DSM 7.3 geminilakenk
+          #- dsm_version: "7.3"
+          #  platform: "geminilakenk"
+          #  kernel_ver: "5.10.55"
+          #  dsm_linux_branch: "geminilakenk-7.3-5.10.55"
+          #  toolchain_key: "toolchain-geminilakenk-7.3-86009"
+          #  toolchain_url: "https://global.synologydownload.com/download/ToolChain/toolchain/7.3-86009/Intel%20x86%20Linux%205.10.55%20%28geminilakenk%29/geminilakenk-gcc1220_glibc236_x86_64-GPL.txz"
+
+          # 3) DSM 7.3 r1000nk
+          - dsm_version: "7.3"
+            platform: "r1000nk"
+            kernel_ver: "5.10.55"
+            dsm_linux_branch: "r1000nk-7.3-5.10.55"
+            toolchain_key: "toolchain-r1000nk-7.3-86009"
+            toolchain_url: "https://global.synologydownload.com/download/ToolChain/toolchain/7.3-86009/AMD%20x86%20Linux%205.10.55%20%28r1000nk%29/r1000nk-gcc1220_glibc236_x86_64-GPL.txz"
+
+          # 4) DSM 7.3 v1000nk
+          #- dsm_version: "7.3"
+          #  platform: "v1000nk"
+          #  kernel_ver: "5.10.55"
+          #  dsm_linux_branch: "v1000nk-7.3-5.10.55"
+          #  toolchain_key: "toolchain-v1000nk-7.3-86009"
+          #  toolchain_url: "https://global.synologydownload.com/download/ToolChain/toolchain/7.3-86009/AMD%20x86%20Linux%205.10.55%20%28v1000nk%29/v1000nk-gcc1220_glibc236_x86_64-GPL.txz"
+
+          # 5) DSM 7.2 epyc7002
+          #- dsm_version: "7.2"
+          #  platform: "epyc7002"
+          #  kernel_ver: "5.10.55"
+          #  dsm_linux_branch: "epyc7002-7.2-5.10.55"
+          #  toolchain_key: "toolchain-epyc7002-7.2-72806"
+          #  toolchain_url: "https://global.synologydownload.com/download/ToolChain/toolchain/7.2-72806/AMD%20x86%20Linux%20Linux%205.10.55%20%28epyc7002%29/epyc7002-gcc1220_glibc236_x86_64-GPL.txz"
+
+    env:
+      DSM_LINUX_REPO: "https://github.com/PeterSuh-Q3/dsm_linux.git"
+      # ✅ runner.temp / github.workspace 기반 경로는 모두 첫 step에서 GITHUB_ENV로 등록
+
+    steps:
+      # ✅ 핵심 수정: runner 컨텍스트 경로를 GITHUB_ENV에 등록하여 이후 모든 스텝에서 동일하게 사용
+      - name: Set runtime environment paths
+        run: |
+          echo "TOOLCHAIN_DIR=${{ runner.temp }}/toolchain"       >> $GITHUB_ENV
+          echo "KERNEL_SRC_DIR=${{ github.workspace }}/dsm_linux" >> $GITHUB_ENV
+          echo "BUILD_OUTPUT_DIR=${{ github.workspace }}/build-output" >> $GITHUB_ENV
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential bc libncurses5-dev libssl-dev cpio xz-utils \
+            flex bison wget tar python3 git rsync libelf-dev dwarves
+
+      - name: Cache Toolchain
+        id: cache-toolchain
+        uses: actions/cache@v4
+        with:
+          # ✅ with: 블록은 runner 컨텍스트 직접 사용 가능 (GITHUB_ENV와 경로 일치)
+          path: ${{ runner.temp }}/toolchain
+          key: ${{ matrix.toolchain_key }}
+
+      - name: Download Synology toolchain
+        if: steps.cache-toolchain.outputs.cache-hit != 'true'
+        run: |
+          set -eux
+          mkdir -p "$TOOLCHAIN_DIR"
+          wget -O /tmp/toolchain.txz "${{ matrix.toolchain_url }}"
+          tar -Jxf /tmp/toolchain.txz -C "$TOOLCHAIN_DIR"
+          rm -f /tmp/toolchain.txz
+
+      - name: Clone dsm_linux (specific branch)
+        run: |
+          set -eux
+          rm -rf "$KERNEL_SRC_DIR"
+          git clone --depth 1 --single-branch \
+            -b "${{ matrix.dsm_linux_branch }}" \
+            "$DSM_LINUX_REPO" "$KERNEL_SRC_DIR"
+
+      - name: Locate toolchain and kernel source
+        id: locate
+        run: |
+          set -eux
+          TOOLCHAIN_GCC_BIN="$(find "$TOOLCHAIN_DIR" -maxdepth 6 -type f \
+            -name 'x86_64-pc-linux-gnu-gcc' | head -n 1 || true)"
+          if [ -z "$TOOLCHAIN_GCC_BIN" ]; then
+            echo "ERROR: x86_64-pc-linux-gnu-gcc not found under $TOOLCHAIN_DIR"
+            echo "--- Available *gcc* binaries ---"
+            find "$TOOLCHAIN_DIR" -maxdepth 6 -type f -name '*gcc*' || true
+            exit 1
+          fi
+          echo "Found GCC: $TOOLCHAIN_GCC_BIN"
+          echo "TOOLCHAIN_BIN_DIR=$(dirname "$TOOLCHAIN_GCC_BIN")" >> "$GITHUB_OUTPUT"
+          echo "CROSS_COMPILE_PREFIX=$(basename "$TOOLCHAIN_GCC_BIN" | sed 's/gcc$//')" >> "$GITHUB_OUTPUT"
+          echo "KERNEL_TREE=$KERNEL_SRC_DIR" >> "$GITHUB_OUTPUT"
+
+      - name: Build bzImage
+        env:
+          KBUILD_BUILD_USER: "PeterSuh-Q3"
+          KBUILD_BUILD_HOST: "MSHELL"
+        run: |
+          set -eux
+          mkdir -p "$BUILD_OUTPUT_DIR"
+
+          TOOLCHAIN_BIN_DIR="${{ steps.locate.outputs.TOOLCHAIN_BIN_DIR }}"
+          CROSS_COMPILE_PREFIX="${{ steps.locate.outputs.CROSS_COMPILE_PREFIX }}"
+          KERNEL_TREE="${{ steps.locate.outputs.KERNEL_TREE }}"
+
+          export PATH="$TOOLCHAIN_BIN_DIR:$PATH"
+          export ARCH=x86_64
+          export CROSS_COMPILE="$CROSS_COMPILE_PREFIX"
+
+          cd "$KERNEL_TREE"
+
+          make mrproper
+
+          # ✅ .config 직접 synology/synoconfigs에서 사용
+          if [ ! -f "synology/synoconfigs/${{ matrix.platform }}" ]; then
+            echo "ERROR: Config not found at synology/synoconfigs/${{ matrix.platform }}"
+            exit 1
+          fi
+          cp "synology/synoconfigs/${{ matrix.platform }}" .config
+          echo "Using config: synology/synoconfigs/${{ matrix.platform }}"
+
+          make olddefconfig
+
+          # ✅ DEBUG 옵션 (모든 플랫폼에 적용 – hydrogen headers 미포함, BTF 빌드 불가)
+          DEBUG_OPTS=(
+            "CONFIG_DEBUG_INFO_BTF=n"
+            "CONFIG_DEBUG_INFO=n"
+            "CONFIG_DEBUG_INFO_DWARF5=n"
+            "CONFIG_DEBUG_INFO_REDUCED=n"
+            "CONFIG_GDB_SCRIPTS=n"
+            "CONFIG_SLIM_DEBUG_INFO=n"
+            "CONFIG_SYNO_RAMDISK_INTEGRITY_CHECK=n"
+            "CONFIG_RD_XZ=y"
+          )
+          for opt in "${DEBUG_OPTS[@]}"; do
+            OPT_NAME="${opt%%=*}"
+            sed -i "/^${OPT_NAME}=/d" .config
+            sed -i "/^# ${OPT_NAME} is not set/d" .config
+            echo "$opt" >> .config
+          done
+
+
+          make olddefconfig
+          echo "Applied DEBUG_OPTS for ${{ matrix.platform }}"
+
+          # ✅ HOSTCC/HOSTCXX에 직접 플래그 주입 (GCC 13+ objtool 오류 방지)
+          make -j"$(nproc)" \
+            HOSTCC="gcc -Wno-error=use-after-free -Wno-error=array-bounds -Wno-error=dangling-pointer" \
+            HOSTCXX="g++ -Wno-error=use-after-free -Wno-error=array-bounds" \
+            EXTRA_CFLAGS="-Wno-error=use-after-free" \
+            bzImage
+
+          OUT_TAG="${{ matrix.platform }}-${{ matrix.dsm_version }}-${{ matrix.kernel_ver }}"
+
+          if [ ! -f "arch/x86/boot/bzImage" ]; then
+            echo "ERROR: arch/x86/boot/bzImage not found after build!"
+            exit 1
+          fi
+          cp "arch/x86/boot/bzImage" "$BUILD_OUTPUT_DIR/bzImage-${OUT_TAG}"
+          gzip -9 "$BUILD_OUTPUT_DIR/bzImage-${OUT_TAG}"
+          echo "Build complete: $BUILD_OUTPUT_DIR/bzImage-${OUT_TAG}.gz"
+
+      - name: Upload bzImage artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-${{ matrix.platform }}-${{ matrix.dsm_version }}
+          path: $BUILD_OUTPUT_DIR/bzImage-${{ matrix.platform }}-${{ matrix.dsm_version }}-${{ matrix.kernel_ver }}.gz
+          if-no-files-found: error
