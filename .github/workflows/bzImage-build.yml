@@ -130,10 +130,11 @@ jobs:
 
           cd "$KERNEL_TREE"
 
-          # ✅ synology/certs 디렉토리 생성 및 trusted_certificates.pem 생성
-          # 이 파일은 GPL 소스에 미포함되지만 빌드 시스템에서 요구됨
+          # ✅ synology/certs 디렉토리 생성 및 필수 인증서 파일 생성
+          # 이 파일들은 GPL 소스에 미포함되지만 빌드 시스템에서 요구됨
           mkdir -p synology/certs
           touch synology/certs/trusted_certificates.pem
+          touch synology/certs/signing_key.pem
 
           make mrproper
 
