@@ -1,0 +1,218 @@
+name: Build DSM Kernel (matrix via dsm_linux)
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Build type: bzImage, modules, or all'
+        required: false
+        default: 'all'
+        type: choice
+        options: ['bzImage', 'modules', 'all']
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # 1) DSM 7.2 epyc7002
+          #- dsm_version: "7.2"
+          #  platform: "epyc7002"
+          #  kernel_ver: "5.10.55"
+          #  dsm_linux_branch: "epyc7002-7.2-5.10.55"
+          #  toolchain_key: "toolchain-epyc7002-7.2-72806"
+          #  toolchain_url: "https://global.synologydownload.com/download/ToolChain/toolchain/7.2-72806/AMD%20x86%20Linux%20Linux%205.10.55%20%28epyc7002%29/epyc7002-gcc1220_glibc236_x86_64-GPL.txz"
+          #  defines_url: "https://raw.githubusercontent.com/PeterSuh-Q3/arpl-modules/main/src/5.x/defines.epyc7002.custom"
+          #  kernel_config_path: "configs/sa6400_dsm72.config"
+          #  module_symvers_path: "configs/sa6400_dsm72.Module.symvers"
+
+          # 2) DSM 7.3 epyc7002
+          - dsm_version: "7.3"
+            platform: "epyc7002"
+            kernel_ver: "5.10.55"
+            dsm_linux_branch: "epyc7002-7.3-5.10.55"
+            toolchain_key: "toolchain-epyc7002-7.3-86009"
+            toolchain_url: "https://global.synologydownload.com/download/ToolChain/toolchain/7.3-86009/AMD%20x86%20Linux%20Linux%205.10.55%20%28epyc7002%29/epyc7002-gcc1220_glibc236_x86_64-GPL.txz"
+            defines_url: "https://raw.githubusercontent.com/PeterSuh-Q3/arpl-modules/main/src/5.x/defines.epyc7002.custom"
+            kernel_config_path: "configs/sa6400_dsm73.config"
+            module_symvers_path: "configs/sa6400_dsm73.Module.symvers"
+
+          # 3) DSM 7.3 geminilakenk 
+          - dsm_version: "7.3"
+            platform: "geminilakenk"
+            kernel_ver: "5.10.55"
+            dsm_linux_branch: "geminilakenk-7.3-5.10.55"  
+            toolchain_key: "toolchain-geminilakenk-7.3-86009"
+            toolchain_url: "https://global.synologydownload.com/download/ToolChain/toolchain/7.3-86009/Intel%20x86%20Linux%205.10.55%20%28geminilakenk%29/geminilakenk-gcc1220_glibc236_x86_64-GPL.txz"
+            defines_url: "https://raw.githubusercontent.com/PeterSuh-Q3/arpl-modules/main/src/5.x/defines.geminilakenk.custom" 
+            kernel_config_path: "configs/geminilakenk_dsm73.config"             
+            module_symvers_path: "configs/geminilakenk_dsm73.Module.symvers"    
+
+    env:
+      DSM_LINUX_REPO: "https://github.com/PeterSuh-Q3/dsm_linux.git"
+      TOOLCHAIN_DIR: "${{ github.workspace }}/toolchain"
+      KERNEL_SRC_DIR: "${{ github.workspace }}/dsm_linux"
+      BUILD_OUTPUT_DIR: "${{ github.workspace }}/build-output"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential bc libncurses5-dev libssl-dev cpio xz-utils \
+            flex bison wget tar python3 git rsync libelf-dev dwarves
+
+      - name: Cache Toolchain
+        id: cache-toolchain
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.TOOLCHAIN_DIR }}
+          key: ${{ matrix.toolchain_key }}
+
+      - name: Download Synology toolchain
+        if: steps.cache-toolchain.outputs.cache-hit != 'true'
+        run: |
+          set -eux
+          mkdir -p "$TOOLCHAIN_DIR" downloads
+          cd downloads
+          wget -O toolchain.txz "${{ matrix.toolchain_url }}"
+          tar -Jxf toolchain.txz -C "$TOOLCHAIN_DIR"
+
+      - name: Clone dsm_linux (shallow)
+        run: |
+          set -eux
+          rm -rf "$KERNEL_SRC_DIR"
+          git clone --depth 1 --single-branch -b "${{ matrix.dsm_linux_branch }}" \
+            "$DSM_LINUX_REPO" "$KERNEL_SRC_DIR"
+
+      - name: Locate toolchain and kernel source
+        id: locate
+        run: |
+          set -eux
+          TOOLCHAIN_GCC_BIN="$(find "$TOOLCHAIN_DIR" -maxdepth 6 -type f -name 'x86_64-pc-linux-gnu-gcc' | head -n 1 || true)"
+          if [ -z "$TOOLCHAIN_GCC_BIN" ]; then
+            echo "x86_64-pc-linux-gnu-gcc not found under $TOOLCHAIN_DIR"
+            exit 1
+          fi
+          echo "TOOLCHAIN_BIN_DIR=$(dirname "$TOOLCHAIN_GCC_BIN")" >> "$GITHUB_OUTPUT"
+          echo "CROSS_COMPILE_PREFIX=$(basename "$TOOLCHAIN_GCC_BIN" | sed 's/gcc$//')" >> "$GITHUB_OUTPUT"
+          echo "KERNEL_TREE=$KERNEL_SRC_DIR" >> "$GITHUB_OUTPUT"
+
+      - name: Build bzImage and modules DSM
+        run: |
+          set -eux
+          mkdir -p "$BUILD_OUTPUT_DIR"
+
+          TOOLCHAIN_BIN_DIR="${{ steps.locate.outputs.TOOLCHAIN_BIN_DIR }}"
+          CROSS_COMPILE_PREFIX="${{ steps.locate.outputs.CROSS_COMPILE_PREFIX }}"
+          KERNEL_TREE="${{ steps.locate.outputs.KERNEL_TREE }}"
+
+          export PATH="$TOOLCHAIN_BIN_DIR:$PATH"
+          export ARCH=x86_64
+          export CROSS_COMPILE="$CROSS_COMPILE_PREFIX"
+
+          cd "$KERNEL_TREE"
+
+          make mrproper
+
+          # .config / Module.symvers (있으면 사용, 없으면 synoconfigs fallback)
+          if [ -f "${{ github.workspace }}/${{ matrix.kernel_config_path }}" ]; then
+            cp "${{ github.workspace }}/${{ matrix.kernel_config_path }}" .config
+          fi
+          if [ -f "${{ github.workspace }}/${{ matrix.module_symvers_path }}" ]; then
+            cp "${{ github.workspace }}/${{ matrix.module_symvers_path }}" Module.symvers
+          fi
+          if [ ! -f ".config" ] && [ -f "synology/synoconfigs/${{ matrix.platform }}" ]; then
+            cp "synology/synoconfigs/${{ matrix.platform }}" .config
+          fi
+
+          # defines 다운로드 + nCONFIG 제거만 수행
+          wget -qO /tmp/defines.custom "${{ matrix.defines_url }}" || true
+          if [ -f "/tmp/defines.custom" ]; then
+            sed -i "/^nCONFIG_/d" /tmp/defines.custom
+          fi
+
+          # 1차 olddefconfig로 기본 정리
+          make olddefconfig
+
+          # olddefconfig 이후, 뒤에 단순 append
+          if [ -f "/tmp/defines.custom" ]; then
+            echo "" >> .config
+            echo "# === Appended from defines ===" >> .config
+            cat /tmp/defines.custom >> .config
+          fi
+
+          # DEBUG 옵션 비활성화 + xz(lzma2) 활성 (원하시면 유지)
+          DEBUG_OPTS=(
+            "CONFIG_DEBUG_INFO_BTF=n"
+            "CONFIG_DEBUG_INFO=n"
+            "CONFIG_DEBUG_INFO_DWARF5=n"
+            "CONFIG_DEBUG_INFO_REDUCED=n"
+            "CONFIG_GDB_SCRIPTS=n"
+            "CONFIG_SLIM_DEBUG_INFO=n"
+            "CONFIG_RD_XZ=y"
+          )
+          for opt in "${DEBUG_OPTS[@]}"; do
+            OPT_NAME="${opt%%=*}"
+            sed -i "/^${OPT_NAME}=/d" .config
+            sed -i "/^# ${OPT_NAME} is not set/d" .config
+            echo "$opt" >> .config
+          done
+
+          # 최종 반영
+          make olddefconfig
+
+          # xz(lzma2) 활성 재확인
+          grep CONFIG_RD_XZ .config
+
+          # build_type 분기
+          BUILD_TYPE="${{ github.event.inputs.build_type }}"
+          if [ "$BUILD_TYPE" = "bzImage" ] || [ "$BUILD_TYPE" = "all" ]; then
+            make -j"$(nproc)" bzImage
+          fi
+          if [ "$BUILD_TYPE" = "modules" ] || [ "$BUILD_TYPE" = "all" ]; then
+            make -j"$(nproc)" modules
+          fi
+
+          # 결과물 파일명에 matrix 포함(충돌 방지)
+          OUT_TAG="${{ matrix.platform }}-${{ matrix.dsm_version }}-${{ matrix.kernel_ver }}"
+
+          # bzImage 패키징
+          if [ "$BUILD_TYPE" = "bzImage" ] || [ "$BUILD_TYPE" = "all" ]; then
+            if [ -f "arch/x86/boot/zImage" ]; then
+              cp "arch/x86/boot/zImage" "$BUILD_OUTPUT_DIR/bzImage-${OUT_TAG}"
+            else
+              cp "arch/x86/boot/bzImage" "$BUILD_OUTPUT_DIR/bzImage-${OUT_TAG}"
+            fi
+            gzip -9 "$BUILD_OUTPUT_DIR/bzImage-${OUT_TAG}"
+          fi
+
+          # modules 패키징
+          if [ "$BUILD_TYPE" = "modules" ] || [ "$BUILD_TYPE" = "all" ]; then
+            make INSTALL_MOD_PATH="$BUILD_OUTPUT_DIR/modules_root-${OUT_TAG}" modules_install
+
+            KERNEL_VER_DIR=$(find "$BUILD_OUTPUT_DIR/modules_root-${OUT_TAG}/lib/modules" -maxdepth 1 -type d -name "${{ matrix.kernel_ver }}*" | head -1)
+            KERNEL_MODULES_DIR="$KERNEL_VER_DIR/kernel"
+
+            FLAT_MODULES_DIR="$BUILD_OUTPUT_DIR/flat-modules-${OUT_TAG}"
+            rm -rf "$FLAT_MODULES_DIR"
+            mkdir -p "$FLAT_MODULES_DIR"
+            find "$KERNEL_MODULES_DIR" -type f -name "*.ko" -exec cp -t "$FLAT_MODULES_DIR" {} +
+
+            tar -czf "$BUILD_OUTPUT_DIR/modules-${OUT_TAG}.tgz" -C "$FLAT_MODULES_DIR" .
+          fi
+
+      - name: Upload artifacts (separated per target)
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-${{ matrix.platform }}-${{ matrix.dsm_version }}
+          path: |
+            ${{ env.BUILD_OUTPUT_DIR }}/bzImage-${{ matrix.platform }}-${{ matrix.dsm_version }}-${{ matrix.kernel_ver }}.gz
+            ${{ env.BUILD_OUTPUT_DIR }}/modules-${{ matrix.platform }}-${{ matrix.dsm_version }}-${{ matrix.kernel_ver }}.tgz
+          if-no-files-found: ignore
