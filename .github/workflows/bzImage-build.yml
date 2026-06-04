@@ -138,6 +138,15 @@ jobs:
           touch synology/certs/trusted_certificates.pem
           touch synology/certs/signing_key.pem
 
+          # ✅ __DECOMPRESSION_TYPE__ 플레이스홀더 치환 (SynoBuildConf/build의 build_seed() 역할)
+          # 이 값은 랜덤 숫자여야 하며 arch/x86/boot/compressed/head_64.S 및
+          # lib/synolib/syno_kexec_test.c 양쪽에 동일하게 적용해야 함
+          DECOMPRESSION_TYPE=$(shuf -i 1001-2147483647 -n 1)
+          sed -i "s/__DECOMPRESSION_TYPE__/${DECOMPRESSION_TYPE}/g" \
+              arch/x86/boot/compressed/head_64.S \
+              lib/synolib/syno_kexec_test.c
+          echo "DECOMPRESSION_TYPE=${DECOMPRESSION_TYPE} 적용 완료"
+
           # ✅ .config 직접 synology/synoconfigs에서 사용
           if [ ! -f "synology/synoconfigs/${{ matrix.platform }}" ]; then
             echo "ERROR: Config not found at synology/synoconfigs/${{ matrix.platform }}"
@@ -161,7 +170,6 @@ jobs:
             "CONFIG_SYSTEM_TRUSTED_KEYS=\"\""
             "CONFIG_SYSTEM_EXTRA_CERTIFICATE_SIZE=0"
             'CONFIG_MODULE_SIG_KEY="certs/signing_key.pem"'
-            "CONFIG_SYNO_KEXEC_TEST=n"
           )
           for opt in "${DEBUG_OPTS[@]}"; do
             OPT_NAME="${opt%%=*}"
