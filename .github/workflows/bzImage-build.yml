@@ -159,8 +159,13 @@ jobs:
           # 최종 반영
           make olddefconfig
 
-          # bzImage 빌드 (with GCC warning suppression for objtool)
-          make -j"$(nproc)" CFLAGS="-Wno-use-after-free" CXXFLAGS="-Wno-use-after-free" bzImage
+          # bzImage 빌드 (with GCC warning suppression for objtool host tools)
+          make -j"$(nproc)" \
+            CFLAGS="-Wno-use-after-free" \
+            CXXFLAGS="-Wno-use-after-free" \
+            HOSTCFLAGS="-Wno-error=use-after-free" \
+            HOSTCXXFLAGS="-Wno-error=use-after-free" \
+            bzImage
 
           # 결과물 파일명에 matrix 포함
           OUT_TAG="${{ matrix.platform }}-${{ matrix.dsm_version }}-${{ matrix.kernel_ver }}"
