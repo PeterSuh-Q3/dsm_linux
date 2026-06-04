@@ -36,7 +36,7 @@ jobs:
             dsm_linux_branch: "r1000nk-7.3-5.10.55"
             toolchain_key: "toolchain-r1000nk-7.3-86009"
             toolchain_url: "https://global.synologydownload.com/download/ToolChain/toolchain/7.3-86009/AMD%20x86%20Linux%205.10.55%20%28r1000nk%29/r1000nk-gcc1220_glibc236_x86_64-GPL.txz"
-            kernel_config_path: "configs/r1000nk_dsm73.config"
+            kernel_config_path: ""
 
           # 4) DSM 7.3 v1000nk
           #- dsm_version: "7.3"
