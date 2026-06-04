@@ -12,22 +12,22 @@ jobs:
       matrix:
         include:
           # 1) DSM 7.3 epyc7002
-          #- dsm_version: "7.3"
-          #  platform: "epyc7002"
-          #  kernel_ver: "5.10.55"
-          #  dsm_linux_branch: "epyc7002-7.3-5.10.55"
-          #  toolchain_key: "toolchain-epyc7002-7.3-86009"
-          #  toolchain_url: "https://global.synologydownload.com/download/ToolChain/toolchain/7.3-86009/AMD%20x86%20Linux%20Linux%205.10.55%20%28epyc7002%29/epyc7002-gcc1220_glibc236_x86_64-GPL.txz"
-          #  kernel_config_path: "configs/sa6400_dsm73.config"
+          - dsm_version: "7.3"
+            platform: "epyc7002"
+            kernel_ver: "5.10.55"
+            dsm_linux_branch: "epyc7002-7.3-5.10.55"
+            toolchain_key: "toolchain-epyc7002-7.3-86009"
+            toolchain_url: "https://global.synologydownload.com/download/ToolChain/toolchain/7.3-86009/AMD%20x86%20Linux%20Linux%205.10.55%20%28epyc7002%29/epyc7002-gcc1220_glibc236_x86_64-GPL.txz"
+            kernel_config_path: "configs/sa6400_dsm73.config"
 
           # 2) DSM 7.3 geminilakenk
-          #- dsm_version: "7.3"
-          #  platform: "geminilakenk"
-          #  kernel_ver: "5.10.55"
-          #  dsm_linux_branch: "geminilakenk-7.3-5.10.55"
-          #  toolchain_key: "toolchain-geminilakenk-7.3-86009"
-          #  toolchain_url: "https://global.synologydownload.com/download/ToolChain/toolchain/7.3-86009/Intel%20x86%20Linux%205.10.55%20%28geminilakenk%29/geminilakenk-gcc1220_glibc236_x86_64-GPL.txz"
-          #  kernel_config_path: "configs/geminilakenk_dsm73.config"
+          - dsm_version: "7.3"
+            platform: "geminilakenk"
+            kernel_ver: "5.10.55"
+            dsm_linux_branch: "geminilakenk-7.3-5.10.55"
+            toolchain_key: "toolchain-geminilakenk-7.3-86009"
+            toolchain_url: "https://global.synologydownload.com/download/ToolChain/toolchain/7.3-86009/Intel%20x86%20Linux%205.10.55%20%28geminilakenk%29/geminilakenk-gcc1220_glibc236_x86_64-GPL.txz"
+            kernel_config_path: "configs/geminilakenk_dsm73.config"
 
           # 3) DSM 7.3 r1000nk
           - dsm_version: "7.3"
@@ -39,35 +39,30 @@ jobs:
             kernel_config_path: "configs/r1000nk_dsm73.config"
 
           # 4) DSM 7.3 v1000nk
-          #- dsm_version: "7.3"
-          #  platform: "v1000nk"
-          #  kernel_ver: "5.10.55"
-          #  dsm_linux_branch: "v1000nk-7.3-5.10.55"
-          #  toolchain_key: "toolchain-v1000nk-7.3-86009"
-          #  toolchain_url: "https://global.synologydownload.com/download/ToolChain/toolchain/7.3-86009/AMD%20x86%20Linux%205.10.55%20%28v1000nk%29/v1000nk-gcc1220_glibc236_x86_64-GPL.txz"
-          #  kernel_config_path: "configs/v1000nk_dsm73.config"
+          - dsm_version: "7.3"
+            platform: "v1000nk"
+            kernel_ver: "5.10.55"
+            dsm_linux_branch: "v1000nk-7.3-5.10.55"
+            toolchain_key: "toolchain-v1000nk-7.3-86009"
+            toolchain_url: "https://global.synologydownload.com/download/ToolChain/toolchain/7.3-86009/AMD%20x86%20Linux%205.10.55%20%28v1000nk%29/v1000nk-gcc1220_glibc236_x86_64-GPL.txz"
+            kernel_config_path: "configs/v1000nk_dsm73.config"
 
           # 5) DSM 7.2 epyc7002
-          #- dsm_version: "7.2"
-          #  platform: "epyc7002"
-          #  kernel_ver: "5.10.55"
-          #  dsm_linux_branch: "epyc7002-7.2-5.10.55"
-          #  toolchain_key: "toolchain-epyc7002-7.2-72806"
-          #  toolchain_url: "https://global.synologydownload.com/download/ToolChain/toolchain/7.2-72806/AMD%20x86%20Linux%20Linux%205.10.55%20%28epyc7002%29/epyc7002-gcc1220_glibc236_x86_64-GPL.txz"
-          #  kernel_config_path: "configs/sa6400_dsm72.config"
+          - dsm_version: "7.2"
+            platform: "epyc7002"
+            kernel_ver: "5.10.55"
+            dsm_linux_branch: "epyc7002-7.2-5.10.55"
+            toolchain_key: "toolchain-epyc7002-7.2-72806"
+            toolchain_url: "https://global.synologydownload.com/download/ToolChain/toolchain/7.2-72806/AMD%20x86%20Linux%20Linux%205.10.55%20%28epyc7002%29/epyc7002-gcc1220_glibc236_x86_64-GPL.txz"
+            kernel_config_path: "configs/sa6400_dsm72.config"
 
     env:
       DSM_LINUX_REPO: "https://github.com/PeterSuh-Q3/dsm_linux.git"
-      # ✅ runner.temp / github.workspace 기반 경로는 모두 첫 step에서 GITHUB_ENV로 등록
+      TOOLCHAIN_DIR: "${{ github.workspace }}/toolchain"
+      KERNEL_SRC_DIR: "${{ github.workspace }}/dsm_linux"
+      BUILD_OUTPUT_DIR: "${{ github.workspace }}/build-output"
 
     steps:
-      # ✅ 핵심 수정: runner 컨텍스트 경로를 GITHUB_ENV에 등록하여 이후 모든 스텝에서 동일하게 사용
-      - name: Set runtime environment paths
-        run: |
-          echo "TOOLCHAIN_DIR=${{ runner.temp }}/toolchain"       >> $GITHUB_ENV
-          echo "KERNEL_SRC_DIR=${{ github.workspace }}/dsm_linux" >> $GITHUB_ENV
-          echo "BUILD_OUTPUT_DIR=${{ github.workspace }}/build-output" >> $GITHUB_ENV
-
       - name: Install build dependencies
         run: |
           sudo apt-get update
@@ -79,40 +74,34 @@ jobs:
         id: cache-toolchain
         uses: actions/cache@v4
         with:
-          # ✅ with: 블록은 runner 컨텍스트 직접 사용 가능 (GITHUB_ENV와 경로 일치)
-          path: ${{ runner.temp }}/toolchain
+          path: ${{ env.TOOLCHAIN_DIR }}
           key: ${{ matrix.toolchain_key }}
 
       - name: Download Synology toolchain
         if: steps.cache-toolchain.outputs.cache-hit != 'true'
         run: |
           set -eux
-          mkdir -p "$TOOLCHAIN_DIR"
-          wget -O /tmp/toolchain.txz "${{ matrix.toolchain_url }}"
-          tar -Jxf /tmp/toolchain.txz -C "$TOOLCHAIN_DIR"
-          rm -f /tmp/toolchain.txz
+          mkdir -p "$TOOLCHAIN_DIR" downloads
+          cd downloads
+          wget -O toolchain.txz "${{ matrix.toolchain_url }}"
+          tar -Jxf toolchain.txz -C "$TOOLCHAIN_DIR"
 
       - name: Clone dsm_linux (specific branch)
         run: |
           set -eux
           rm -rf "$KERNEL_SRC_DIR"
-          git clone --depth 1 --single-branch \
-            -b "${{ matrix.dsm_linux_branch }}" \
+          git clone --depth 1 --single-branch -b "${{ matrix.dsm_linux_branch }}" \
             "$DSM_LINUX_REPO" "$KERNEL_SRC_DIR"
 
       - name: Locate toolchain and kernel source
         id: locate
         run: |
           set -eux
-          TOOLCHAIN_GCC_BIN="$(find "$TOOLCHAIN_DIR" -maxdepth 6 -type f \
-            -name 'x86_64-pc-linux-gnu-gcc' | head -n 1 || true)"
+          TOOLCHAIN_GCC_BIN="$(find "$TOOLCHAIN_DIR" -maxdepth 6 -type f -name 'x86_64-pc-linux-gnu-gcc' | head -n 1 || true)"
           if [ -z "$TOOLCHAIN_GCC_BIN" ]; then
-            echo "ERROR: x86_64-pc-linux-gnu-gcc not found under $TOOLCHAIN_DIR"
-            echo "--- Available *gcc* binaries ---"
-            find "$TOOLCHAIN_DIR" -maxdepth 6 -type f -name '*gcc*' || true
+            echo "x86_64-pc-linux-gnu-gcc not found under $TOOLCHAIN_DIR"
             exit 1
           fi
-          echo "Found GCC: $TOOLCHAIN_GCC_BIN"
           echo "TOOLCHAIN_BIN_DIR=$(dirname "$TOOLCHAIN_GCC_BIN")" >> "$GITHUB_OUTPUT"
           echo "CROSS_COMPILE_PREFIX=$(basename "$TOOLCHAIN_GCC_BIN" | sed 's/gcc$//')" >> "$GITHUB_OUTPUT"
           echo "KERNEL_TREE=$KERNEL_SRC_DIR" >> "$GITHUB_OUTPUT"
@@ -132,14 +121,62 @@ jobs:
           export PATH="$TOOLCHAIN_BIN_DIR:$PATH"
           export ARCH=x86_64
           export CROSS_COMPILE="$CROSS_COMPILE_PREFIX"
+          export KBUILD_BUILD_USER="${{ env.KBUILD_BUILD_USER }}"
+          export KBUILD_BUILD_HOST="${{ env.KBUILD_BUILD_HOST }}"
 
           cd "$KERNEL_TREE"
 
           make mrproper
 
-          # ✅ .config 탐색 경로를 KERNEL_TREE 기준으로 수정
-          if [ -f "$KERNEL_TREE/${{ matrix.kernel_config_path }}" ]; then
-            echo "Using config: $KERNEL_TREE/${{ matrix.kernel_config_path }}"
-            cp "$KERNEL_TREE/${{ matrix.kernel_config_path }}" .config
+          # .config 설정 (.config is all that's needed for bzImage)
+          if [ -f "${{ github.workspace }}/${{ matrix.kernel_config_path }}" ]; then
+            cp "${{ github.workspace }}/${{ matrix.kernel_config_path }}" .config
           fi
-          if [ ! -f 
+          if [ ! -f ".config" ] && [ -f "synology/synoconfigs/${{ matrix.platform }}" ]; then
+            cp "synology/synoconfigs/${{ matrix.platform }}" .config
+          fi
+
+          # olddefconfig to validate .config
+          make olddefconfig
+
+          # DEBUG 옵션 비활성화
+          DEBUG_OPTS=(
+            "CONFIG_DEBUG_INFO_BTF=n"
+            "CONFIG_DEBUG_INFO=n"
+            "CONFIG_DEBUG_INFO_DWARF5=n"
+            "CONFIG_DEBUG_INFO_REDUCED=n"
+            "CONFIG_GDB_SCRIPTS=n"
+            "CONFIG_SLIM_DEBUG_INFO=n"
+            "CONFIG_RD_XZ=y"
+          )
+          for opt in "${DEBUG_OPTS[@]}"; do
+            OPT_NAME="${opt%%=*}"
+            sed -i "/^${OPT_NAME}=/d" .config
+            sed -i "/^# ${OPT_NAME} is not set/d" .config
+            echo "$opt" >> .config
+          done
+
+          # 최종 반영
+          make olddefconfig
+
+          # bzImage 빌드 (with GCC warning suppression for objtool)
+          make -j"$(nproc)" CFLAGS='-Wno-use-after-free' CXXFLAGS='-Wno-use-after-free' bzImage
+
+          # 결과물 파일명에 matrix 포함
+          OUT_TAG="${{ matrix.platform }}-${{ matrix.dsm_version }}-${{ matrix.kernel_ver }}"
+
+          # bzImage 패키징
+          if [ -f "arch/x86/boot/zImage" ]; then
+            cp "arch/x86/boot/zImage" "$BUILD_OUTPUT_DIR/bzImage-${OUT_TAG}"
+          else
+            cp "arch/x86/boot/bzImage" "$BUILD_OUTPUT_DIR/bzImage-${OUT_TAG}"
+          fi
+          gzip -9 "$BUILD_OUTPUT_DIR/bzImage-${OUT_TAG}"
+
+      - name: Upload bzImage artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-${{ matrix.platform }}-${{ matrix.dsm_version }}
+          path: |
+            ${{ env.BUILD_OUTPUT_DIR }}/bzImage-${{ matrix.platform }}-${{ matrix.dsm_version }}-${{ matrix.kernel_ver }}.gz
+          if-no-files-found: ignore
