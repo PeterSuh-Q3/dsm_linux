@@ -56,7 +56,7 @@ jobs:
           #  kernel_config_path: "configs/sa6400_dsm72.config"
 
     env:
-      TOOLCHAIN_DIR: "${{ github.workspace }}/toolchain"
+      TOOLCHAIN_DIR: "${{ runner.temp }}/toolchain"
       KERNEL_SRC_DIR: "${{ github.workspace }}"
       BUILD_OUTPUT_DIR: "${{ github.workspace }}/build-output"
 
