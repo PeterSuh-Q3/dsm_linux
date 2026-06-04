@@ -147,6 +147,7 @@ jobs:
             "CONFIG_DEBUG_INFO_REDUCED=n"
             "CONFIG_GDB_SCRIPTS=n"
             "CONFIG_SLIM_DEBUG_INFO=n"
+            "CONFIG_SYNO_RAMDISK_INTEGRITY_CHECK=n"
             "CONFIG_RD_XZ=y"
           )
           for opt in "${DEBUG_OPTS[@]}"; do
