@@ -203,5 +203,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: kernel-${{ matrix.platform }}-${{ matrix.dsm_version }}
-          path: $BUILD_OUTPUT_DIR/bzImage-${{ matrix.platform }}-${{ matrix.dsm_version }}-${{ matrix.kernel_ver }}.gz
+          path: ${{ env.BUILD_OUTPUT_DIR }}/bzImage-${{ matrix.platform }}-${{ matrix.dsm_version }}-${{ matrix.kernel_ver }}.gz
           if-no-files-found: error
