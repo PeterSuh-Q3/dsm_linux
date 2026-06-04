@@ -1,4 +1,4 @@
-name: Build DSM bzImage Only (Pilot r1000nk Platform)
+name: Build DSM bzImage (All Platforms)
 
 on:
   workflow_dispatch:
