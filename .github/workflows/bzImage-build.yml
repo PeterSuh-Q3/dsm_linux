@@ -33,7 +33,6 @@ jobs:
           - dsm_version: "7.3"
             platform: "r1000nk"
             kernel_ver: "5.10.55"
-            dsm_linux_branch: "r1000nk-7.3-5.10.55"
             toolchain_key: "toolchain-r1000nk-7.3-86009"
             toolchain_url: "https://global.synologydownload.com/download/ToolChain/toolchain/7.3-86009/AMD%20x86%20Linux%205.10.55%20%28r1000nk%29/r1000nk-gcc1220_glibc236_x86_64-GPL.txz"
             kernel_config_path: "configs/r1000nk_dsm73.config"
@@ -57,12 +56,14 @@ jobs:
           #  kernel_config_path: "configs/sa6400_dsm72.config"
 
     env:
-      DSM_LINUX_REPO: "https://github.com/PeterSuh-Q3/dsm_linux.git"
       TOOLCHAIN_DIR: "${{ github.workspace }}/toolchain"
-      KERNEL_SRC_DIR: "${{ github.workspace }}/dsm_linux"
+      KERNEL_SRC_DIR: "${{ github.workspace }}"
       BUILD_OUTPUT_DIR: "${{ github.workspace }}/build-output"
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Install build dependencies
         run: |
           sudo apt-get update
@@ -81,17 +82,10 @@ jobs:
         if: steps.cache-toolchain.outputs.cache-hit != 'true'
         run: |
           set -eux
-          mkdir -p "$TOOLCHAIN_DIR" downloads
-          cd downloads
-          wget -O toolchain.txz "${{ matrix.toolchain_url }}"
-          tar -Jxf toolchain.txz -C "$TOOLCHAIN_DIR"
-
-      - name: Clone dsm_linux (specific branch)
-        run: |
-          set -eux
-          rm -rf "$KERNEL_SRC_DIR"
-          git clone --depth 1 --single-branch -b "${{ matrix.dsm_linux_branch }}" \
-            "$DSM_LINUX_REPO" "$KERNEL_SRC_DIR"
+          mkdir -p "$TOOLCHAIN_DIR"
+          wget -O /tmp/toolchain.txz "${{ matrix.toolchain_url }}"
+          tar -Jxf /tmp/toolchain.txz -C "$TOOLCHAIN_DIR"
+          rm -f /tmp/toolchain.txz
 
       - name: Locate toolchain and kernel source
         id: locate
