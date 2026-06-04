@@ -142,4 +142,61 @@ jobs:
             echo "Using config: $KERNEL_TREE/${{ matrix.kernel_config_path }}"
             cp "$KERNEL_TREE/${{ matrix.kernel_config_path }}" .config
           fi
-          if [ ! -f 
+          if [ ! -f ".config" ] && [ -f "synology/synoconfigs/${{ matrix.platform }}" ]; then
+            echo "Fallback: using synology/synoconfigs/${{ matrix.platform }}"
+            cp "synology/synoconfigs/${{ matrix.platform }}" .config
+          fi
+
+          # ✅ .config 없으면 명시적 실패
+          if [ ! -f ".config" ]; then
+            echo "ERROR: No .config found! Checked:"
+            echo "  1) $KERNEL_TREE/${{ matrix.kernel_config_path }}"
+            echo "  2) synology/synoconfigs/${{ matrix.platform }}"
+            exit 1
+          fi
+
+          make olddefconfig
+
+          # DEBUG 옵션 비활성화
+          DEBUG_OPTS=(
+            "CONFIG_DEBUG_INFO_BTF=n"
+            "CONFIG_DEBUG_INFO=n"
+            "CONFIG_DEBUG_INFO_DWARF5=n"
+            "CONFIG_DEBUG_INFO_REDUCED=n"
+            "CONFIG_GDB_SCRIPTS=n"
+            "CONFIG_SLIM_DEBUG_INFO=n"
+            "CONFIG_SYNO_RAMDISK_INTEGRITY_CHECK=n"
+            "CONFIG_RD_XZ=y"
+          )
+          for opt in "${DEBUG_OPTS[@]}"; do
+            OPT_NAME="${opt%%=*}"
+            sed -i "/^${OPT_NAME}=/d" .config
+            sed -i "/^# ${OPT_NAME} is not set/d" .config
+            echo "$opt" >> .config
+          done
+
+          make olddefconfig
+
+          # ✅ HOSTCC/HOSTCXX에 직접 플래그 주입 (GCC 13+ objtool 오류 방지)
+          make -j"$(nproc)" \
+            HOSTCC="gcc -Wno-error=use-after-free -Wno-error=array-bounds -Wno-error=dangling-pointer" \
+            HOSTCXX="g++ -Wno-error=use-after-free -Wno-error=array-bounds" \
+            EXTRA_CFLAGS="-Wno-error=use-after-free" \
+            bzImage
+
+          OUT_TAG="${{ matrix.platform }}-${{ matrix.dsm_version }}-${{ matrix.kernel_ver }}"
+
+          if [ ! -f "arch/x86/boot/bzImage" ]; then
+            echo "ERROR: arch/x86/boot/bzImage not found after build!"
+            exit 1
+          fi
+          cp "arch/x86/boot/bzImage" "$BUILD_OUTPUT_DIR/bzImage-${OUT_TAG}"
+          gzip -9 "$BUILD_OUTPUT_DIR/bzImage-${OUT_TAG}"
+          echo "Build complete: $BUILD_OUTPUT_DIR/bzImage-${OUT_TAG}.gz"
+
+      - name: Upload bzImage artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-${{ matrix.platform }}-${{ matrix.dsm_version }}
+          path: $BUILD_OUTPUT_DIR/bzImage-${{ matrix.platform }}-${{ matrix.dsm_version }}-${{ matrix.kernel_ver }}.gz
+          if-no-files-found: error
