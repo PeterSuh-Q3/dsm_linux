@@ -142,26 +142,6 @@ jobs:
 
           make olddefconfig
 
-          # DEBUG 옵션 비활성화
-          DEBUG_OPTS=(
-            "CONFIG_DEBUG_INFO_BTF=n"
-            "CONFIG_DEBUG_INFO=n"
-            "CONFIG_DEBUG_INFO_DWARF5=n"
-            "CONFIG_DEBUG_INFO_REDUCED=n"
-            "CONFIG_GDB_SCRIPTS=n"
-            "CONFIG_SLIM_DEBUG_INFO=n"
-            "CONFIG_SYNO_RAMDISK_INTEGRITY_CHECK=n"
-            "CONFIG_RD_XZ=y"
-          )
-          for opt in "${DEBUG_OPTS[@]}"; do
-            OPT_NAME="${opt%%=*}"
-            sed -i "/^${OPT_NAME}=/d" .config
-            sed -i "/^# ${OPT_NAME} is not set/d" .config
-            echo "$opt" >> .config
-          done
-
-          make olddefconfig
-
           # ✅ HOSTCC/HOSTCXX에 직접 플래그 주입 (GCC 13+ objtool 오류 방지)
           make -j"$(nproc)" \
             HOSTCC="gcc -Wno-error=use-after-free -Wno-error=array-bounds -Wno-error=dangling-pointer" \
