@@ -110,8 +110,6 @@ jobs:
         env:
           KBUILD_BUILD_USER: "PeterSuh-Q3"
           KBUILD_BUILD_HOST: "MSHELL"
-          CFLAGS: "-Wno-use-after-free"
-          CXXFLAGS: "-Wno-use-after-free"
         run: |
           set -eux
           mkdir -p "$BUILD_OUTPUT_DIR"
@@ -125,8 +123,6 @@ jobs:
           export CROSS_COMPILE="$CROSS_COMPILE_PREFIX"
           export KBUILD_BUILD_USER="${{ env.KBUILD_BUILD_USER }}"
           export KBUILD_BUILD_HOST="${{ env.KBUILD_BUILD_HOST }}"
-          export CFLAGS="${{ env.CFLAGS }}"
-          export CXXFLAGS="${{ env.CXXFLAGS }}"
 
           cd "$KERNEL_TREE"
 
@@ -163,8 +159,8 @@ jobs:
           # 최종 반영
           make olddefconfig
 
-          # bzImage 빌드
-          make -j"$(nproc)" bzImage
+          # bzImage 빌드 (with GCC warning suppression for objtool)
+          make -j"$(nproc)" CFLAGS="-Wno-use-after-free" CXXFLAGS="-Wno-use-after-free" bzImage
 
           # 결과물 파일명에 matrix 포함
           OUT_TAG="${{ matrix.platform }}-${{ matrix.dsm_version }}-${{ matrix.kernel_ver }}"
