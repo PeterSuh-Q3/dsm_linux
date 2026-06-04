@@ -163,6 +163,7 @@ jobs:
           make -j"$(nproc)" \
             CFLAGS="-Wno-use-after-free" \
             CXXFLAGS="-Wno-use-after-free" \
+            EXTRA_CFLAGS="-Wno-error=use-after-free" \
             HOSTCFLAGS="-Wno-error=use-after-free" \
             HOSTCXXFLAGS="-Wno-error=use-after-free" \
             bzImage
