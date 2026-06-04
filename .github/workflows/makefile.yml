@@ -176,13 +176,14 @@ jobs:
           # xz(lzma2) 활성 재확인
           grep CONFIG_RD_XZ .config
 
-          # build_type 분기
+          # build_type 분기 (with GCC warning suppression for objtool)
           BUILD_TYPE="${{ github.event.inputs.build_type }}"
+          GCC_FLAGS="CFLAGS='-Wno-use-after-free' CXXFLAGS='-Wno-use-after-free'"
           if [ "$BUILD_TYPE" = "bzImage" ] || [ "$BUILD_TYPE" = "all" ]; then
-            make -j"$(nproc)" bzImage
+            make -j"$(nproc)" $GCC_FLAGS bzImage
           fi
           if [ "$BUILD_TYPE" = "modules" ] || [ "$BUILD_TYPE" = "all" ]; then
-            make -j"$(nproc)" modules
+            make -j"$(nproc)" $GCC_FLAGS modules
           fi
 
           # 결과물 파일명에 matrix 포함(충돌 방지)
