@@ -1,0 +1,221 @@
+name: Build DSM bzImage + Modules (All Platforms)
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Build type: bzImage, modules, or all'
+        required: false
+        default: 'all'
+        type: choice
+        options: ['bzImage', 'modules', 'all']
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # 1) DSM 7.3 epyc7002 (pilot)
+          - dsm_version: "7.3"
+            platform: "epyc7002"
+            kernel_ver: "5.10.55"
+            dsm_linux_branch: "epyc7002-7.3-5.10.55"
+            toolchain_key: "toolchain-epyc7002-7.3-86009"
+            toolchain_url: "https://global.synologydownload.com/download/ToolChain/toolchain/7.3-86009/AMD%20x86%20Linux%20Linux%205.10.55%20%28epyc7002%29/epyc7002-gcc1220_glibc236_x86_64-GPL.txz"
+
+          # 2) DSM 7.3 geminilakenk
+          #- dsm_version: "7.3"
+          #  platform: "geminilakenk"
+          #  kernel_ver: "5.10.55"
+          #  dsm_linux_branch: "geminilakenk-7.3-5.10.55"
+          #  toolchain_key: "toolchain-geminilakenk-7.3-86009"
+          #  toolchain_url: "https://global.synologydownload.com/download/ToolChain/toolchain/7.3-86009/Intel%20x86%20Linux%205.10.55%20%28geminilakenk%29/geminilakenk-gcc1220_glibc236_x86_64-GPL.txz"
+
+          # 3) DSM 7.3 r1000nk
+          #- dsm_version: "7.3"
+          #  platform: "r1000nk"
+          #  kernel_ver: "5.10.55"
+          #  dsm_linux_branch: "r1000nk-7.3-5.10.55"
+          #  toolchain_key: "toolchain-r1000nk-7.3-86009"
+          #  toolchain_url: "https://global.synologydownload.com/download/ToolChain/toolchain/7.3-86009/AMD%20x86%20Linux%205.10.55%20%28r1000nk%29/r1000nk-gcc1220_glibc236_x86_64-GPL.txz"
+
+          # 4) DSM 7.3 v1000nk
+          #- dsm_version: "7.3"
+          #  platform: "v1000nk"
+          #  kernel_ver: "5.10.55"
+          #  dsm_linux_branch: "v1000nk-7.3-5.10.55"
+          #  toolchain_key: "toolchain-v1000nk-7.3-86009"
+          #  toolchain_url: "https://global.synologydownload.com/download/ToolChain/toolchain/7.3-86009/AMD%20x86%20Linux%205.10.55%20%28v1000nk%29/v1000nk-gcc1220_glibc236_x86_64-GPL.txz"
+
+    env:
+      DSM_LINUX_REPO: "https://github.com/PeterSuh-Q3/dsm_linux.git"
+
+    steps:
+      - name: Set runtime environment paths
+        run: |
+          echo "TOOLCHAIN_DIR=${{ runner.temp }}/toolchain"       >> $GITHUB_ENV
+          echo "KERNEL_SRC_DIR=${{ github.workspace }}/dsm_linux" >> $GITHUB_ENV
+          echo "BUILD_OUTPUT_DIR=${{ github.workspace }}/build-output" >> $GITHUB_ENV
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential bc libncurses5-dev libssl-dev cpio xz-utils \
+            flex bison wget tar python3 git rsync libelf-dev dwarves
+
+      - name: Cache Toolchain
+        id: cache-toolchain
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/toolchain
+          key: ${{ matrix.toolchain_key }}
+
+      - name: Download Synology toolchain
+        if: steps.cache-toolchain.outputs.cache-hit != 'true'
+        run: |
+          set -eux
+          mkdir -p "$TOOLCHAIN_DIR"
+          wget -O /tmp/toolchain.txz "${{ matrix.toolchain_url }}"
+          tar -Jxf /tmp/toolchain.txz -C "$TOOLCHAIN_DIR"
+          rm -f /tmp/toolchain.txz
+
+      - name: Clone dsm_linux (specific branch)
+        run: |
+          set -eux
+          rm -rf "$KERNEL_SRC_DIR"
+          git clone --depth 1 --single-branch \
+            -b "${{ matrix.dsm_linux_branch }}" \
+            "$DSM_LINUX_REPO" "$KERNEL_SRC_DIR"
+
+      - name: Locate toolchain and kernel source
+        id: locate
+        run: |
+          set -eux
+          TOOLCHAIN_GCC_BIN="$(find "$TOOLCHAIN_DIR" -maxdepth 6 -type f \
+            -name 'x86_64-pc-linux-gnu-gcc' | head -n 1 || true)"
+          if [ -z "$TOOLCHAIN_GCC_BIN" ]; then
+            echo "ERROR: x86_64-pc-linux-gnu-gcc not found under $TOOLCHAIN_DIR"
+            find "$TOOLCHAIN_DIR" -maxdepth 6 -type f -name '*gcc*' || true
+            exit 1
+          fi
+          echo "Found GCC: $TOOLCHAIN_GCC_BIN"
+          echo "TOOLCHAIN_BIN_DIR=$(dirname "$TOOLCHAIN_GCC_BIN")" >> "$GITHUB_OUTPUT"
+          echo "CROSS_COMPILE_PREFIX=$(basename "$TOOLCHAIN_GCC_BIN" | sed 's/gcc$//')" >> "$GITHUB_OUTPUT"
+          echo "KERNEL_TREE=$KERNEL_SRC_DIR" >> "$GITHUB_OUTPUT"
+
+      - name: Build bzImage and/or Modules
+        env:
+          KBUILD_BUILD_USER: "PeterSuh-Q3"
+          KBUILD_BUILD_HOST: "MSHELL"
+        run: |
+          set -eux
+          mkdir -p "$BUILD_OUTPUT_DIR"
+
+          TOOLCHAIN_BIN_DIR="${{ steps.locate.outputs.TOOLCHAIN_BIN_DIR }}"
+          CROSS_COMPILE_PREFIX="${{ steps.locate.outputs.CROSS_COMPILE_PREFIX }}"
+          KERNEL_TREE="${{ steps.locate.outputs.KERNEL_TREE }}"
+
+          export PATH="$TOOLCHAIN_BIN_DIR:$PATH"
+          export ARCH=x86_64
+          export CROSS_COMPILE="$CROSS_COMPILE_PREFIX"
+
+          cd "$KERNEL_TREE"
+
+          make mrproper
+
+          # ✅ synology/certs 생성 (mrproper 이후)
+          mkdir -p synology/certs
+          touch synology/certs/trusted_certificates.pem
+          touch synology/certs/signing_key.pem
+
+          # ✅ __DECOMPRESSION_TYPE__ 플레이스홀더 치환
+          DECOMPRESSION_TYPE=$(shuf -i 1001-2147483647 -n 1)
+          sed -i "s/__DECOMPRESSION_TYPE__/${DECOMPRESSION_TYPE}/g" \
+              arch/x86/boot/compressed/head_64.S \
+              lib/synolib/syno_kexec_test.c
+          echo "DECOMPRESSION_TYPE=${DECOMPRESSION_TYPE} 적용 완료"
+
+          # ✅ .config: synology/synoconfigs 사용
+          if [ ! -f "synology/synoconfigs/${{ matrix.platform }}" ]; then
+            echo "ERROR: Config not found at synology/synoconfigs/${{ matrix.platform }}"
+            exit 1
+          fi
+          cp "synology/synoconfigs/${{ matrix.platform }}" .config
+
+          make olddefconfig
+
+          # ✅ 공통 CONFIG 오버라이드
+          DEBUG_OPTS=(
+            "CONFIG_DEBUG_INFO_BTF=n"
+            "CONFIG_DEBUG_INFO=n"
+            "CONFIG_DEBUG_INFO_DWARF5=n"
+            "CONFIG_DEBUG_INFO_REDUCED=n"
+            "CONFIG_GDB_SCRIPTS=n"
+            "CONFIG_SLIM_DEBUG_INFO=n"
+            "CONFIG_SYNO_RAMDISK_INTEGRITY_CHECK=n"
+            "CONFIG_RD_XZ=y"
+            "CONFIG_SYSTEM_TRUSTED_KEYS=\"\""
+            "CONFIG_SYSTEM_EXTRA_CERTIFICATE_SIZE=0"
+            'CONFIG_MODULE_SIG_KEY="certs/signing_key.pem"'
+          )
+          for opt in "${DEBUG_OPTS[@]}"; do
+            OPT_NAME="${opt%%=*}"
+            sed -i "/^${OPT_NAME}=/d" .config
+            sed -i "/^# ${OPT_NAME} is not set/d" .config
+            echo "$opt" >> .config
+          done
+
+          make olddefconfig
+          echo "Applied DEBUG_OPTS for ${{ matrix.platform }}"
+
+          BUILD_TYPE="${{ github.event.inputs.build_type }}"
+          OUT_TAG="${{ matrix.platform }}-${{ matrix.dsm_version }}-${{ matrix.kernel_ver }}"
+
+          # ✅ bzImage 빌드
+          if [ "$BUILD_TYPE" = "bzImage" ] || [ "$BUILD_TYPE" = "all" ]; then
+            make -j"$(nproc)" \
+              HOSTCC="gcc -Wno-error=use-after-free -Wno-error=array-bounds -Wno-error=dangling-pointer" \
+              HOSTCXX="g++ -Wno-error=use-after-free -Wno-error=array-bounds" \
+              EXTRA_CFLAGS="-Wno-error=use-after-free" \
+              bzImage
+            if [ ! -f "arch/x86/boot/bzImage" ]; then
+              echo "ERROR: arch/x86/boot/bzImage not found!"
+              exit 1
+            fi
+            cp "arch/x86/boot/bzImage" "$BUILD_OUTPUT_DIR/bzImage-${OUT_TAG}"
+            gzip -9 "$BUILD_OUTPUT_DIR/bzImage-${OUT_TAG}"
+            echo "bzImage build complete: $BUILD_OUTPUT_DIR/bzImage-${OUT_TAG}.gz"
+          fi
+
+          # ✅ Modules 빌드
+          if [ "$BUILD_TYPE" = "modules" ] || [ "$BUILD_TYPE" = "all" ]; then
+            make -j"$(nproc)" \
+              HOSTCC="gcc -Wno-error=use-after-free -Wno-error=array-bounds -Wno-error=dangling-pointer" \
+              HOSTCXX="g++ -Wno-error=use-after-free -Wno-error=array-bounds" \
+              EXTRA_CFLAGS="-Wno-error=use-after-free" \
+              modules
+
+            MODULES_INSTALL_DIR="$BUILD_OUTPUT_DIR/modules_root-${OUT_TAG}"
+            make INSTALL_MOD_PATH="$MODULES_INSTALL_DIR" modules_install
+
+            KERNEL_VER_DIR=$(find "$MODULES_INSTALL_DIR/lib/modules" -maxdepth 1 -mindepth 1 -type d | head -1)
+            FLAT_MODULES_DIR="$BUILD_OUTPUT_DIR/flat-modules-${OUT_TAG}"
+            mkdir -p "$FLAT_MODULES_DIR"
+            find "$KERNEL_VER_DIR/kernel" -type f -name "*.ko" -exec cp -t "$FLAT_MODULES_DIR" {} +
+
+            tar -czf "$BUILD_OUTPUT_DIR/modules-${OUT_TAG}.tgz" -C "$FLAT_MODULES_DIR" .
+            echo "Modules build complete: $BUILD_OUTPUT_DIR/modules-${OUT_TAG}.tgz"
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-${{ matrix.platform }}-${{ matrix.dsm_version }}
+          path: |
+            ${{ github.workspace }}/build-output/bzImage-${{ matrix.platform }}-${{ matrix.dsm_version }}-${{ matrix.kernel_ver }}.gz
+            ${{ github.workspace }}/build-output/modules-${{ matrix.platform }}-${{ matrix.dsm_version }}-${{ matrix.kernel_ver }}.tgz
+          if-no-files-found: ignore
