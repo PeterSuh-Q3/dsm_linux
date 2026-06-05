@@ -27,28 +27,28 @@ jobs:
             toolchain_url: "https://global.synologydownload.com/download/ToolChain/toolchain/7.3-86009/AMD%20x86%20Linux%20Linux%205.10.55%20%28epyc7002%29/epyc7002-gcc1220_glibc236_x86_64-GPL.txz"
 
           # 2) DSM 7.3 geminilakenk
-          #- dsm_version: "7.3"
-          #  platform: "geminilakenk"
-          #  kernel_ver: "5.10.55"
-          #  dsm_linux_branch: "geminilakenk-7.3-5.10.55"
-          #  toolchain_key: "toolchain-geminilakenk-7.3-86009"
-          #  toolchain_url: "https://global.synologydownload.com/download/ToolChain/toolchain/7.3-86009/Intel%20x86%20Linux%205.10.55%20%28geminilakenk%29/geminilakenk-gcc1220_glibc236_x86_64-GPL.txz"
+          - dsm_version: "7.3"
+            platform: "geminilakenk"
+            kernel_ver: "5.10.55"
+            dsm_linux_branch: "geminilakenk-7.3-5.10.55"
+            toolchain_key: "toolchain-geminilakenk-7.3-86009"
+            toolchain_url: "https://global.synologydownload.com/download/ToolChain/toolchain/7.3-86009/Intel%20x86%20Linux%205.10.55%20%28geminilakenk%29/geminilakenk-gcc1220_glibc236_x86_64-GPL.txz"
 
           # 3) DSM 7.3 r1000nk
-          #- dsm_version: "7.3"
-          #  platform: "r1000nk"
-          #  kernel_ver: "5.10.55"
-          #  dsm_linux_branch: "r1000nk-7.3-5.10.55"
-          #  toolchain_key: "toolchain-r1000nk-7.3-86009"
-          #  toolchain_url: "https://global.synologydownload.com/download/ToolChain/toolchain/7.3-86009/AMD%20x86%20Linux%205.10.55%20%28r1000nk%29/r1000nk-gcc1220_glibc236_x86_64-GPL.txz"
+          - dsm_version: "7.3"
+            platform: "r1000nk"
+            kernel_ver: "5.10.55"
+            dsm_linux_branch: "r1000nk-7.3-5.10.55"
+            toolchain_key: "toolchain-r1000nk-7.3-86009"
+            toolchain_url: "https://global.synologydownload.com/download/ToolChain/toolchain/7.3-86009/AMD%20x86%20Linux%205.10.55%20%28r1000nk%29/r1000nk-gcc1220_glibc236_x86_64-GPL.txz"
 
           # 4) DSM 7.3 v1000nk
-          #- dsm_version: "7.3"
-          #  platform: "v1000nk"
-          #  kernel_ver: "5.10.55"
-          #  dsm_linux_branch: "v1000nk-7.3-5.10.55"
-          #  toolchain_key: "toolchain-v1000nk-7.3-86009"
-          #  toolchain_url: "https://global.synologydownload.com/download/ToolChain/toolchain/7.3-86009/AMD%20x86%20Linux%205.10.55%20%28v1000nk%29/v1000nk-gcc1220_glibc236_x86_64-GPL.txz"
+          - dsm_version: "7.3"
+            platform: "v1000nk"
+            kernel_ver: "5.10.55"
+            dsm_linux_branch: "v1000nk-7.3-5.10.55"
+            toolchain_key: "toolchain-v1000nk-7.3-86009"
+            toolchain_url: "https://global.synologydownload.com/download/ToolChain/toolchain/7.3-86009/AMD%20x86%20Linux%205.10.55%20%28v1000nk%29/v1000nk-gcc1220_glibc236_x86_64-GPL.txz"
 
     env:
       DSM_LINUX_REPO: "https://github.com/PeterSuh-Q3/dsm_linux.git"
@@ -207,8 +207,8 @@ jobs:
             mkdir -p "$FLAT_MODULES_DIR"
             find "$KERNEL_VER_DIR/kernel" -type f -name "*.ko" -exec cp -t "$FLAT_MODULES_DIR" {} +
 
-            tar -czf "$BUILD_OUTPUT_DIR/modules-${OUT_TAG}.tgz" -C "$FLAT_MODULES_DIR" .
-            echo "Modules build complete: $BUILD_OUTPUT_DIR/modules-${OUT_TAG}.tgz"
+            tar -czf "$BUILD_OUTPUT_DIR/${OUT_TAG}.tgz" -C "$FLAT_MODULES_DIR" .
+            echo "Modules build complete: $BUILD_OUTPUT_DIR/${OUT_TAG}.tgz"
           fi
 
       - name: Upload artifacts
@@ -217,5 +217,5 @@ jobs:
           name: kernel-${{ matrix.platform }}-${{ matrix.dsm_version }}
           path: |
             ${{ github.workspace }}/build-output/bzImage-${{ matrix.platform }}-${{ matrix.dsm_version }}-${{ matrix.kernel_ver }}.gz
-            ${{ github.workspace }}/build-output/modules-${{ matrix.platform }}-${{ matrix.dsm_version }}-${{ matrix.kernel_ver }}.tgz
+            ${{ github.workspace }}/build-output/${{ matrix.platform }}-${{ matrix.dsm_version }}-${{ matrix.kernel_ver }}.tgz
           if-no-files-found: ignore
