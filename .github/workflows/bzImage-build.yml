@@ -43,14 +43,6 @@ jobs:
             toolchain_key: "toolchain-v1000nk-7.3-86009"
             toolchain_url: "https://global.synologydownload.com/download/ToolChain/toolchain/7.3-86009/AMD%20x86%20Linux%205.10.55%20%28v1000nk%29/v1000nk-gcc1220_glibc236_x86_64-GPL.txz"
 
-          # 5) DSM 7.2 epyc7002
-          - dsm_version: "7.2"
-            platform: "epyc7002"
-            kernel_ver: "5.10.55"
-            dsm_linux_branch: "epyc7002-7.2-5.10.55"
-            toolchain_key: "toolchain-epyc7002-7.2-72806"
-            toolchain_url: "https://global.synologydownload.com/download/ToolChain/toolchain/7.2-72806/AMD%20x86%20Linux%20Linux%205.10.55%20%28epyc7002%29/epyc7002-gcc1220_glibc236_x86_64-GPL.txz"
-
     env:
       DSM_LINUX_REPO: "https://github.com/PeterSuh-Q3/dsm_linux.git"
       # ✅ runner.temp / github.workspace 기반 경로는 모두 첫 step에서 GITHUB_ENV로 등록
