@@ -129,12 +129,8 @@ jobs:
 
           # r1000nk/v1000nk branches miss lowercase xt_mark header expected by xt_mark.c
           if [ ! -f include/linux/netfilter/xt_mark.h ] && [ -f include/uapi/linux/netfilter/xt_MARK.h ]; then
-            cat > include/linux/netfilter/xt_mark.h <<'EOF'
-            #ifndef _XT_MARK_COMPAT_H
-            #define _XT_MARK_COMPAT_H
-            #include <uapi/linux/netfilter/xt_MARK.h>
-            #endif
-            EOF
+            printf '#ifndef _XT_MARK_COMPAT_H\n#define _XT_MARK_COMPAT_H\n#include <uapi/linux/netfilter/xt_MARK.h>\n#endif\n' \
+              > include/linux/netfilter/xt_mark.h
           fi
 
           # ✅ synology/certs 생성 (mrproper 이후)
