@@ -128,8 +128,9 @@ jobs:
           make mrproper
 
           # r1000nk/v1000nk branches miss lowercase xt_mark header expected by xt_mark.c
-          if [ ! -f include/linux/netfilter/xt_mark.h ] && [ -f include/uapi/linux/netfilter/xt_MARK.h ]; then
-            printf '#ifndef _XT_MARK_COMPAT_H\n#define _XT_MARK_COMPAT_H\n#include <uapi/linux/netfilter/xt_MARK.h>\n#endif\n' \
+          if [ ! -f include/linux/netfilter/xt_mark.h ]; then
+            mkdir -p include/linux/netfilter
+            printf '#ifndef _XT_MARK_H\n#define _XT_MARK_H\n#include <linux/types.h>\n\nstruct xt_mark_tginfo2 {\n\t__u32 mark, mask;\n};\n\nstruct xt_mark_mtinfo1 {\n\t__u32 mark, mask;\n\t__u8 invert;\n};\n\n#endif /* _XT_MARK_H */\n' \
               > include/linux/netfilter/xt_mark.h
           fi
 
