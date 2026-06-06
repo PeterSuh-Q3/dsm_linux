@@ -204,7 +204,7 @@ jobs:
               HOSTCC="gcc -Wno-error=use-after-free -Wno-error=array-bounds -Wno-error=dangling-pointer" \
               HOSTCXX="g++ -Wno-error=use-after-free -Wno-error=array-bounds" \
               EXTRA_CFLAGS="-Wno-error=use-after-free" \
-              modules
+              modules modules.builtin modules.builtin.modinfo
 
             MODULES_INSTALL_DIR="$BUILD_OUTPUT_DIR/modules_root-${OUT_TAG}"
             make INSTALL_MOD_PATH="$MODULES_INSTALL_DIR" modules_install
