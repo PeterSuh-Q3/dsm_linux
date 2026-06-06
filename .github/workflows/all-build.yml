@@ -127,6 +127,16 @@ jobs:
 
           make mrproper
 
+          # r1000nk/v1000nk branches miss lowercase xt_mark header expected by xt_mark.c
+          if [ ! -f include/linux/netfilter/xt_mark.h ] && [ -f include/uapi/linux/netfilter/xt_MARK.h ]; then
+            cat > include/linux/netfilter/xt_mark.h <<'EOF'
+            #ifndef _XT_MARK_COMPAT_H
+            #define _XT_MARK_COMPAT_H
+            #include <uapi/linux/netfilter/xt_MARK.h>
+            #endif
+            EOF
+          fi
+
           # ✅ synology/certs 생성 (mrproper 이후)
           mkdir -p synology/certs
           touch synology/certs/trusted_certificates.pem
