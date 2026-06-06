@@ -172,36 +172,137 @@ jobs:
           make olddefconfig
           echo "Applied DEBUG_OPTS for ${{ matrix.platform }}"
 
-          # ✅ NIC 드라이버 추가 활성화 (mshell-modules 호환성)
-          NIC_OPTS=(
+          # ✅ 추가 모듈 활성화 (mshell-modules 호환성: NIC/SCSI/TCP/IPMI/MMC)
+          EXTRA_OPTS=(
+            # --- NIC: Intel ---
             "CONFIG_E1000=m"
             "CONFIG_E1000E=m"
             "CONFIG_IGBVF=m"
+            "CONFIG_IXGB=m"
             "CONFIG_IXGBE=m"
             "CONFIG_IXGBEVF=m"
             "CONFIG_I40E=m"
+            "CONFIG_IAVF=m"
             "CONFIG_ICE=m"
+            "CONFIG_IGC=m"
+            # --- NIC: Mellanox ---
             "CONFIG_MLX4_CORE=m"
             "CONFIG_MLX4_EN=m"
             "CONFIG_MLX5_CORE=m"
             "CONFIG_MLXFW=m"
+            # --- NIC: Broadcom ---
             "CONFIG_BNXT=m"
             "CONFIG_BNX2=m"
             "CONFIG_BNX2X=m"
             "CONFIG_TIGON3=m"
+            "CONFIG_B44=m"
+            # --- NIC: Atheros ---
             "CONFIG_ALX=m"
             "CONFIG_ATL1C=m"
             "CONFIG_ATL1E=m"
+            # --- NIC: Marvell ---
             "CONFIG_SKGE=m"
             "CONFIG_SKY2=m"
+            # --- NIC: QLogic/Cavium ---
+            "CONFIG_QED=m"
+            "CONFIG_QEDE=m"
+            "CONFIG_QLA3XXX=m"
+            "CONFIG_QLCNIC=m"
+            "CONFIG_QLGE=m"
+            # --- NIC: Solarflare ---
+            "CONFIG_SFC=m"
+            # --- NIC: Neterion ---
+            "CONFIG_S2IO=m"
+            "CONFIG_VXGE=m"
+            # --- NIC: 기타 ---
             "CONFIG_VMXNET3=m"
             "CONFIG_R8169=m"
             "CONFIG_8139CP=m"
             "CONFIG_TEHUTI=m"
-            "CONFIG_B44=m"
             "CONFIG_FORCEDETH=m"
+            "CONFIG_JME=m"
+            "CONFIG_VIA_VELOCITY=m"
+            "CONFIG_NETXEN_NIC=m"
+            # --- NIC: USB ---
+            "CONFIG_USB_NET_AQC111=m"
+            "CONFIG_USB_NET_AX8817X=m"
+            "CONFIG_USB_NET_DM9601=m"
+            "CONFIG_USB_RTL8150=m"
+            "CONFIG_USB_RTL8152=m"
+            # --- SCSI/SAS HBA ---
+            "CONFIG_MEGARAID_SAS=m"
+            "CONFIG_MEGARAID_MAILBOX=m"
+            "CONFIG_MEGARAID_MM=m"
+            "CONFIG_MEGARAID_NEWGEN=m"
+            "CONFIG_MEGARAID_LEGACY=m"
+            "CONFIG_SCSI_HPSA=m"
+            "CONFIG_SCSI_ARCMSR=m"
+            "CONFIG_SCSI_MPT3SAS=m"
+            "CONFIG_SCSI_MPI3MR=m"
+            "CONFIG_SCSI_AACRAID=m"
+            "CONFIG_SCSI_SMARTPQI=m"
+            "CONFIG_SCSI_MVSAS=m"
+            "CONFIG_SCSI_ISCI=m"
+            "CONFIG_VMWARE_PVSCSI=m"
+            "CONFIG_SCSI_TRANSPORT_FC=m"
+            "CONFIG_SCSI_TRANSPORT_SPI=m"
+            "CONFIG_SCSI_SAS_ATTRS=m"
+            "CONFIG_SCSI_SAS_LIBSAS=m"
+            "CONFIG_SCSI_ISCSI_ATTRS=m"
+            "CONFIG_LIBISCSI=m"
+            "CONFIG_LIBISCSI_TCP=m"
+            # --- TCP 혼잡제어 ---
+            "CONFIG_TCP_CONG_BBR=m"
+            "CONFIG_TCP_CONG_BIC=m"
+            "CONFIG_TCP_CONG_CDG=m"
+            "CONFIG_TCP_CONG_DCTCP=m"
+            "CONFIG_TCP_CONG_HIGHSPEED=m"
+            "CONFIG_TCP_CONG_HTCP=m"
+            "CONFIG_TCP_CONG_HYBLA=m"
+            "CONFIG_TCP_CONG_ILLINOIS=m"
+            "CONFIG_TCP_CONG_LP=m"
+            "CONFIG_TCP_CONG_NV=m"
+            "CONFIG_TCP_CONG_SCALABLE=m"
+            "CONFIG_TCP_CONG_VEGAS=m"
+            "CONFIG_TCP_CONG_VENO=m"
+            "CONFIG_TCP_CONG_WESTWOOD=m"
+            "CONFIG_TCP_CONG_YEAH=m"
+            # --- IPMI/BMC ---
+            "CONFIG_IPMI_HANDLER=m"
+            "CONFIG_IPMI_SI=m"
+            "CONFIG_IPMI_SSIF=m"
+            "CONFIG_IPMI_DEVICE_INTERFACE=m"
+            # --- MMC/SD ---
+            "CONFIG_MMC=m"
+            "CONFIG_MMC_BLOCK=m"
+            "CONFIG_MMC_CORE=m"
+            "CONFIG_MMC_CQHCI=m"
+            "CONFIG_MMC_SDHCI=m"
+            "CONFIG_MMC_SDHCI_PCI=m"
+            "CONFIG_MMC_SDHCI_PLTFM=m"
+            "CONFIG_MMC_SDHCI_ACPI=m"
+            # --- 네트워크 스케줄러 ---
+            "CONFIG_NET_SCH_CAKE=m"
+            "CONFIG_NET_SCH_CODEL=m"
+            "CONFIG_NET_SCH_FQ=m"
+            "CONFIG_NET_SCH_FQ_CODEL=m"
+            "CONFIG_NET_SCH_FQ_PIE=m"
+            "CONFIG_NET_SCH_MQPRIO=m"
+            "CONFIG_NET_SCH_MULTIQ=m"
+            "CONFIG_NET_SCH_PIE=m"
+            # --- Netfilter 확장 ---
+            "CONFIG_NETFILTER_XT_MATCH_COMMENT=m"
+            "CONFIG_NETFILTER_XT_MATCH_CONNMARK=m"
+            "CONFIG_NETFILTER_XT_MATCH_MARK=m"
+            "CONFIG_NETFILTER_XT_MATCH_OWNER=m"
+            "CONFIG_NETFILTER_XT_MATCH_STRING=m"
+            "CONFIG_NETFILTER_XT_MATCH_TCPUDP=m"
+            "CONFIG_NETFILTER_XT_TARGET_NAT=m"
+            "CONFIG_IP_NF_RAW=m"
+            "CONFIG_IP6_NF_NAT=m"
+            "CONFIG_IP6_NF_RAW=m"
           )
-          for opt in "${NIC_OPTS[@]}"; do
+          for opt in "${EXTRA_OPTS[@]}"; do
             OPT_NAME="${opt%%=*}"
             sed -i "/^${OPT_NAME}=/d" .config
             sed -i "/^# ${OPT_NAME} is not set/d" .config
@@ -209,7 +310,7 @@ jobs:
           done
 
           make olddefconfig
-          echo "Applied NIC_OPTS for ${{ matrix.platform }}"
+          echo "Applied EXTRA_OPTS for ${{ matrix.platform }}"
 
           OUT_TAG="${{ matrix.platform }}-${{ matrix.dsm_version }}-${{ matrix.kernel_ver }}"
 
