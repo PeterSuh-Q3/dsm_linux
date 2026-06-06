@@ -363,7 +363,8 @@ jobs:
             "CONFIG_NTFS_FS=m"
             "CONFIG_9P_FS=m"
             # --- ATA/스토리지 ---
-            "CONFIG_ATA_PIIX=m"
+            # CONFIG_ATA_PIIX 제외: syno_libata_disk_power_loss_when_reboot 미정의 심볼
+            # "CONFIG_ATA_PIIX=m"
             "CONFIG_SCSI_AIC94XX=m"
             "CONFIG_BLK_MQ_VIRTIO=m"
             # --- GPU/FB ---
