@@ -12,12 +12,12 @@ jobs:
       matrix:
         include:
           # 1) DSM 7.3 epyc7002 (pilot)
-          #- dsm_version: "7.3"
-          #  platform: "epyc7002"
-          #  kernel_ver: "5.10.55"
-          #  dsm_linux_branch: "epyc7002-7.3-5.10.55"
-          #  toolchain_key: "toolchain-epyc7002-7.3-86009"
-          #  toolchain_url: "https://global.synologydownload.com/download/ToolChain/toolchain/7.3-86009/AMD%20x86%20Linux%20Linux%205.10.55%20%28epyc7002%29/epyc7002-gcc1220_glibc236_x86_64-GPL.txz"
+          - dsm_version: "7.3"
+            platform: "epyc7002"
+            kernel_ver: "5.10.55"
+            dsm_linux_branch: "epyc7002-7.3-5.10.55"
+            toolchain_key: "toolchain-epyc7002-7.3-86009"
+            toolchain_url: "https://global.synologydownload.com/download/ToolChain/toolchain/7.3-86009/AMD%20x86%20Linux%20Linux%205.10.55%20%28epyc7002%29/epyc7002-gcc1220_glibc236_x86_64-GPL.txz"
 
           # 2) DSM 7.3 geminilakenk
           #- dsm_version: "7.3"
@@ -28,20 +28,20 @@ jobs:
           #  toolchain_url: "https://global.synologydownload.com/download/ToolChain/toolchain/7.3-86009/Intel%20x86%20Linux%205.10.55%20%28geminilakenk%29/geminilakenk-gcc1220_glibc236_x86_64-GPL.txz"
 
           # 3) DSM 7.3 r1000nk
-          - dsm_version: "7.3"
-            platform: "r1000nk"
-            kernel_ver: "5.10.55"
-            dsm_linux_branch: "r1000nk-7.3-5.10.55"
-            toolchain_key: "toolchain-r1000nk-7.3-86009"
-            toolchain_url: "https://global.synologydownload.com/download/ToolChain/toolchain/7.3-86009/AMD%20x86%20Linux%205.10.55%20%28r1000nk%29/r1000nk-gcc1220_glibc236_x86_64-GPL.txz"
+          #- dsm_version: "7.3"
+          #  platform: "r1000nk"
+          #  kernel_ver: "5.10.55"
+          #  dsm_linux_branch: "r1000nk-7.3-5.10.55"
+          #  toolchain_key: "toolchain-r1000nk-7.3-86009"
+          #  toolchain_url: "https://global.synologydownload.com/download/ToolChain/toolchain/7.3-86009/AMD%20x86%20Linux%205.10.55%20%28r1000nk%29/r1000nk-gcc1220_glibc236_x86_64-GPL.txz"
 
           # 4) DSM 7.3 v1000nk
-          - dsm_version: "7.3"
-            platform: "v1000nk"
-            kernel_ver: "5.10.55"
-            dsm_linux_branch: "v1000nk-7.3-5.10.55"
-            toolchain_key: "toolchain-v1000nk-7.3-86009"
-            toolchain_url: "https://global.synologydownload.com/download/ToolChain/toolchain/7.3-86009/AMD%20x86%20Linux%205.10.55%20%28v1000nk%29/v1000nk-gcc1220_glibc236_x86_64-GPL.txz"
+          #- dsm_version: "7.3"
+          #  platform: "v1000nk"
+          #  kernel_ver: "5.10.55"
+          #  dsm_linux_branch: "v1000nk-7.3-5.10.55"
+          #  toolchain_key: "toolchain-v1000nk-7.3-86009"
+          #  toolchain_url: "https://global.synologydownload.com/download/ToolChain/toolchain/7.3-86009/AMD%20x86%20Linux%205.10.55%20%28v1000nk%29/v1000nk-gcc1220_glibc236_x86_64-GPL.txz"
 
     env:
       DSM_LINUX_REPO: "https://github.com/PeterSuh-Q3/dsm_linux.git"
@@ -171,6 +171,45 @@ jobs:
 
           make olddefconfig
           echo "Applied DEBUG_OPTS for ${{ matrix.platform }}"
+
+          # ✅ NIC 드라이버 추가 활성화 (mshell-modules 호환성)
+          NIC_OPTS=(
+            "CONFIG_E1000=m"
+            "CONFIG_E1000E=m"
+            "CONFIG_IGBVF=m"
+            "CONFIG_IXGBE=m"
+            "CONFIG_IXGBEVF=m"
+            "CONFIG_I40E=m"
+            "CONFIG_ICE=m"
+            "CONFIG_MLX4_CORE=m"
+            "CONFIG_MLX4_EN=m"
+            "CONFIG_MLX5_CORE=m"
+            "CONFIG_MLXFW=m"
+            "CONFIG_BNXT=m"
+            "CONFIG_BNX2=m"
+            "CONFIG_BNX2X=m"
+            "CONFIG_TIGON3=m"
+            "CONFIG_ALX=m"
+            "CONFIG_ATL1C=m"
+            "CONFIG_ATL1E=m"
+            "CONFIG_SKGE=m"
+            "CONFIG_SKY2=m"
+            "CONFIG_VMXNET3=m"
+            "CONFIG_R8169=m"
+            "CONFIG_8139CP=m"
+            "CONFIG_TEHUTI=m"
+            "CONFIG_B44=m"
+            "CONFIG_FORCEDETH=m"
+          )
+          for opt in "${NIC_OPTS[@]}"; do
+            OPT_NAME="${opt%%=*}"
+            sed -i "/^${OPT_NAME}=/d" .config
+            sed -i "/^# ${OPT_NAME} is not set/d" .config
+            echo "$opt" >> .config
+          done
+
+          make olddefconfig
+          echo "Applied NIC_OPTS for ${{ matrix.platform }}"
 
           OUT_TAG="${{ matrix.platform }}-${{ matrix.dsm_version }}-${{ matrix.kernel_ver }}"
 
