@@ -2,13 +2,6 @@ name: Build DSM bzImage + Modules (All Platforms)
 
 on:
   workflow_dispatch:
-    inputs:
-      build_type:
-        description: 'Build type: bzImage, modules, or all'
-        required: false
-        default: 'all'
-        type: choice
-        options: ['bzImage', 'modules', 'all']
 
 jobs:
   build:
@@ -179,11 +172,10 @@ jobs:
           make olddefconfig
           echo "Applied DEBUG_OPTS for ${{ matrix.platform }}"
 
-          BUILD_TYPE="${{ github.event.inputs.build_type }}"
           OUT_TAG="${{ matrix.platform }}-${{ matrix.dsm_version }}-${{ matrix.kernel_ver }}"
 
           # ✅ bzImage 빌드
-          if [ "$BUILD_TYPE" = "bzImage" ] || [ "$BUILD_TYPE" = "all" ]; then
+          if true; then
             make -j"$(nproc)" \
               HOSTCC="gcc -Wno-error=use-after-free -Wno-error=array-bounds -Wno-error=dangling-pointer" \
               HOSTCXX="g++ -Wno-error=use-after-free -Wno-error=array-bounds" \
@@ -199,16 +191,12 @@ jobs:
           fi
 
           # ✅ Modules 빌드
-          if [ "$BUILD_TYPE" = "modules" ] || [ "$BUILD_TYPE" = "all" ]; then
+          if true; then
             make -j"$(nproc)" \
               HOSTCC="gcc -Wno-error=use-after-free -Wno-error=array-bounds -Wno-error=dangling-pointer" \
               HOSTCXX="g++ -Wno-error=use-after-free -Wno-error=array-bounds" \
               EXTRA_CFLAGS="-Wno-error=use-after-free" \
               modules
-
-            # modules_install 이 요구하는 파일이 vmlinux 없이 빌드 시 누락될 수 있으므로 보장
-            [ -f modules.builtin ] || touch modules.builtin
-            [ -f modules.builtin.modinfo ] || touch modules.builtin.modinfo
 
             MODULES_INSTALL_DIR="$BUILD_OUTPUT_DIR/modules_root-${OUT_TAG}"
             make INSTALL_MOD_PATH="$MODULES_INSTALL_DIR" modules_install
