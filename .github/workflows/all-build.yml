@@ -134,6 +134,13 @@ jobs:
               > include/linux/netfilter/xt_mark.h
           fi
 
+          # r1000nk/v1000nk branches also miss xt_TCPMSS header expected by xt_TCPMSS.c
+          if [ ! -f include/linux/netfilter/xt_TCPMSS.h ]; then
+            mkdir -p include/linux/netfilter
+            printf '#ifndef _XT_TCPMSS_H\n#define _XT_TCPMSS_H\n#include <linux/types.h>\n\n#define XT_TCPMSS_CLAMP_PMTU\t0xffff\n\nstruct xt_tcpmss_info {\n\t__u16 mss;\n};\n\n#endif /* _XT_TCPMSS_H */\n' \
+              > include/linux/netfilter/xt_TCPMSS.h
+          fi
+
           # ✅ synology/certs 생성 (mrproper 이후)
           mkdir -p synology/certs
           touch synology/certs/trusted_certificates.pem
