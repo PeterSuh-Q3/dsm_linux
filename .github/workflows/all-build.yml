@@ -11,7 +11,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    if: ${{ contains(inputs.platforms || 'epyc7002,geminilakenk,r1000nk,v1000nk', matrix.platform) }}
 
     strategy:
       fail-fast: false
@@ -59,7 +58,16 @@ jobs:
           echo "KERNEL_SRC_DIR=${{ github.workspace }}/dsm_linux" >> $GITHUB_ENV
           echo "BUILD_OUTPUT_DIR=${{ github.workspace }}/build-output" >> $GITHUB_ENV
 
+      - name: Check platform filter
+        run: |
+          FILTER="${{ inputs.platforms || 'epyc7002,geminilakenk,r1000nk,v1000nk' }}"
+          if ! echo "$FILTER" | tr ',' '\n' | grep -qx "${{ matrix.platform }}"; then
+            echo "SKIP=true" >> $GITHUB_ENV
+            echo "Skipping ${{ matrix.platform }} (not in filter: $FILTER)"
+          fi
+
       - name: Install build dependencies
+        if: env.SKIP != 'true'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -67,6 +75,7 @@ jobs:
             flex bison wget tar python3 git rsync libelf-dev dwarves
 
       - name: Cache Toolchain
+        if: env.SKIP != 'true'
         id: cache-toolchain
         uses: actions/cache@v4
         with:
@@ -74,7 +83,7 @@ jobs:
           key: ${{ matrix.toolchain_key }}
 
       - name: Download Synology toolchain
-        if: steps.cache-toolchain.outputs.cache-hit != 'true'
+        if: env.SKIP != 'true' && steps.cache-toolchain.outputs.cache-hit != 'true'
         run: |
           set -eux
           mkdir -p "$TOOLCHAIN_DIR"
@@ -83,6 +92,7 @@ jobs:
           rm -f /tmp/toolchain.txz
 
       - name: Clone dsm_linux (specific branch)
+        if: env.SKIP != 'true'
         run: |
           set -eux
           rm -rf "$KERNEL_SRC_DIR"
@@ -91,6 +101,7 @@ jobs:
             "$DSM_LINUX_REPO" "$KERNEL_SRC_DIR"
 
       - name: Locate toolchain and kernel source
+        if: env.SKIP != 'true'
         id: locate
         run: |
           set -eux
@@ -107,6 +118,7 @@ jobs:
           echo "KERNEL_TREE=$KERNEL_SRC_DIR" >> "$GITHUB_OUTPUT"
 
       - name: Build bzImage and/or Modules
+        if: env.SKIP != 'true'
         env:
           KBUILD_BUILD_USER: "PeterSuh-Q3"
           KBUILD_BUILD_HOST: "MSHELL"
@@ -503,6 +515,7 @@ jobs:
           fi
 
       - name: Upload artifacts
+        if: env.SKIP != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: kernel-${{ matrix.platform }}-${{ matrix.dsm_version }}
