@@ -2,10 +2,16 @@ name: Build DSM bzImage + Modules (All Platforms)
 
 on:
   workflow_dispatch:
+    inputs:
+      platforms:
+        description: 'Build platforms (comma-separated: epyc7002,geminilakenk,r1000nk,v1000nk)'
+        required: false
+        default: 'epyc7002,geminilakenk,r1000nk,v1000nk'
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    if: ${{ contains(inputs.platforms || 'epyc7002,geminilakenk,r1000nk,v1000nk', matrix.platform) }}
 
     strategy:
       fail-fast: false
