@@ -483,3 +483,43 @@ jobs:
             ${{ github.workspace }}/build-output/bzImage-${{ matrix.platform }}-${{ matrix.dsm_version }}-${{ matrix.kernel_ver }}.gz
             ${{ github.workspace }}/build-output/${{ matrix.platform }}-${{ matrix.dsm_version }}-${{ matrix.kernel_ver }}.tgz
           if-no-files-found: ignore
+
+  publish:
+    name: Publish artifacts to master branch root
+    needs: build
+    runs-on: ubuntu-latest
+    if: success()
+
+    steps:
+      - name: Checkout master branch
+        uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 1
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/artifacts
+
+      - name: Copy artifacts to repo root
+        run: |
+          set -eux
+          find /tmp/artifacts -type f \( -name "*.gz" -o -name "*.tgz" \) | while read f; do
+            cp "$f" .
+          done
+          ls -lh *.gz *.tgz
+
+      - name: Commit and push to master
+        run: |
+          set -eux
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add *.gz *.tgz
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "release: DSM 7.3 bzImage + modules for all 4 platforms (run ${{ github.run_id }})"
+            git push origin master
+          fi
