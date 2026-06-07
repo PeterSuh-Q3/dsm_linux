@@ -216,10 +216,6 @@ jobs:
             "CONFIG_VXGE=m"
             # --- NIC: 기타 ---
             "CONFIG_VMXNET3=m"
-            "CONFIG_R8168=m"
-            "CONFIG_R8125=m"
-            "CONFIG_R8126=m"
-            "CONFIG_R8127=m"
             "CONFIG_8139CP=m"
             "CONFIG_TEHUTI=m"
             "CONFIG_FORCEDETH=m"
