@@ -460,7 +460,7 @@ jobs:
               "CONFIG_USB_COMMON=y"
               "CONFIG_USB_XHCI_HCD=m"
               "CONFIG_USB_XHCI_PCI=m"
-              "CONFIG_USB_ACM=m"
+              "CONFIG_USB_ACM=y"
               "CONFIG_EXFAT_FS=m"
               "CONFIG_IGB=m"
             )
