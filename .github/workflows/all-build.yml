@@ -441,7 +441,6 @@ jobs:
           # ✅ bzImage 빌드
           if true; then
             make -j"$(nproc)" \
-              LOCALVERSION="" \
               HOSTCC="gcc -Wno-error=use-after-free -Wno-error=array-bounds -Wno-error=dangling-pointer" \
               HOSTCXX="g++ -Wno-error=use-after-free -Wno-error=array-bounds" \
               EXTRA_CFLAGS="-Wno-error=use-after-free" \
@@ -458,14 +457,13 @@ jobs:
           # ✅ Modules 빌드
           if true; then
             make -j"$(nproc)" \
-              LOCALVERSION="" \
               HOSTCC="gcc -Wno-error=use-after-free -Wno-error=array-bounds -Wno-error=dangling-pointer" \
               HOSTCXX="g++ -Wno-error=use-after-free -Wno-error=array-bounds" \
               EXTRA_CFLAGS="-Wno-error=use-after-free" \
               modules
 
             MODULES_INSTALL_DIR="$BUILD_OUTPUT_DIR/modules_root-${OUT_TAG}"
-            make LOCALVERSION="" INSTALL_MOD_PATH="$MODULES_INSTALL_DIR" modules_install
+            make INSTALL_MOD_PATH="$MODULES_INSTALL_DIR" modules_install
 
             KERNEL_VER_DIR=$(find "$MODULES_INSTALL_DIR/lib/modules" -maxdepth 1 -mindepth 1 -type d | head -1)
             FLAT_MODULES_DIR="$BUILD_OUTPUT_DIR/flat-modules-${OUT_TAG}"
