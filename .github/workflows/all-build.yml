@@ -434,6 +434,25 @@ jobs:
             done
             make olddefconfig
             echo "Applied AMDGPU_OPTS for ${{ matrix.platform }}"
+
+            # ✅ r1000nk / v1000nk: USB xHCI + ExFAT + IGB 활성화
+            # (synodevice /dev/synoboot 등 USB 부트로더 접근에 필요)
+            USB_EXTRA_OPTS=(
+              "CONFIG_USB=m"
+              "CONFIG_USB_COMMON=m"
+              "CONFIG_USB_XHCI_HCD=m"
+              "CONFIG_USB_XHCI_PCI=m"
+              "CONFIG_EXFAT_FS=m"
+              "CONFIG_IGB=m"
+            )
+            for opt in "${USB_EXTRA_OPTS[@]}"; do
+              OPT_NAME="${opt%%=*}"
+              sed -i "/^${OPT_NAME}=/d" .config
+              sed -i "/^# ${OPT_NAME} is not set/d" .config
+              echo "$opt" >> .config
+            done
+            make olddefconfig
+            echo "Applied USB_EXTRA_OPTS for ${{ matrix.platform }}"
           fi
 
           OUT_TAG="${{ matrix.platform }}-${{ matrix.dsm_version }}-${{ matrix.kernel_ver }}"
