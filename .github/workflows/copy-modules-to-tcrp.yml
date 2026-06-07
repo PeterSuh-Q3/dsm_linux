@@ -1,0 +1,93 @@
+name: Copy Module Tarballs to tcrp-modules
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Build DSM bzImage + Modules (All Platforms)"]
+    types:
+      - completed
+    branches:
+      - master
+
+jobs:
+  copy:
+    name: Copy .tgz to tcrp-modules and update JSON sha256
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - name: Checkout dsm_linux master (source tarballs)
+        uses: actions/checkout@v4
+        with:
+          repository: PeterSuh-Q3/dsm_linux
+          ref: master
+          path: dsm_linux
+
+      - name: Checkout tcrp-modules (destination)
+        uses: actions/checkout@v4
+        with:
+          repository: PeterSuh-Q3/tcrp-modules
+          ref: main
+          path: tcrp-modules
+          token: ${{ secrets.PAT }}
+
+      - name: Copy tarballs and update JSON sha256
+        run: |
+          set -eux
+          RELEASES="tcrp-modules/custom-modules/releases"
+          DSM_VER="7.3"
+          KVER="5.10.55"
+
+          for PLATFORM in epyc7002 geminilakenk r1000nk v1000nk; do
+            TGZ="${PLATFORM}-${DSM_VER}-${KVER}.tgz"
+            JSON="${PLATFORM}-${DSM_VER}.json"
+            SRC="dsm_linux/${TGZ}"
+            DST="${RELEASES}/${TGZ}"
+
+            if [ ! -f "$SRC" ]; then
+              echo "SKIP: $SRC not found"
+              continue
+            fi
+
+            cp "$SRC" "$DST"
+            NEW_SHA=$(sha256sum "$DST" | awk '{print $1}')
+            echo "${PLATFORM}: ${NEW_SHA}"
+
+            # JSON sha256 갱신 (첫 번째 파일 항목 = 모듈 tarball)
+            JSON_PATH="${RELEASES}/${JSON}"
+            if [ -f "$JSON_PATH" ]; then
+              # 플랫폼 tgz 항목의 sha256만 교체
+              python3 -c "
+import json, sys
+path = sys.argv[1]
+tgz  = sys.argv[2]
+sha  = sys.argv[3]
+with open(path) as f:
+    data = json.load(f)
+for entry in data['files']:
+    if entry['name'] == tgz:
+        entry['sha256'] = sha
+        break
+with open(path, 'w') as f:
+    json.dump(data, f, indent=2, ensure_ascii=False)
+    f.write('\n')
+" "$JSON_PATH" "$TGZ" "$NEW_SHA"
+              echo "Updated $JSON_PATH"
+            else
+              echo "WARNING: $JSON_PATH not found, skipping JSON update"
+            fi
+          done
+
+      - name: Commit and push to tcrp-modules
+        run: |
+          set -eux
+          cd tcrp-modules
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add custom-modules/releases/*.tgz custom-modules/releases/*.json
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "sync: update module tarballs + sha256 from dsm_linux master (run ${{ github.run_id }})"
+            git push origin main
+          fi
