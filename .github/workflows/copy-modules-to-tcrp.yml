@@ -56,22 +56,22 @@ jobs:
             # JSON sha256 갱신 (첫 번째 파일 항목 = 모듈 tarball)
             JSON_PATH="${RELEASES}/${JSON}"
             if [ -f "$JSON_PATH" ]; then
-              # 플랫폼 tgz 항목의 sha256만 교체
-              python3 -c "
-              import json, sys
-              path = sys.argv[1]
-              tgz  = sys.argv[2]
-              sha  = sys.argv[3]
-              with open(path) as f:
-                  data = json.load(f)
-              for entry in data['files']:
-                  if entry['name'] == tgz:
-                      entry['sha256'] = sha
-                      break
-              with open(path, 'w') as f:
-                  json.dump(data, f, indent=2, ensure_ascii=False)
-                  f.write('\n')
-              " "$JSON_PATH" "$TGZ" "$NEW_SHA"
+              cat > /tmp/update_json.py << 'PYEOF'
+import json, sys
+path = sys.argv[1]
+tgz  = sys.argv[2]
+sha  = sys.argv[3]
+with open(path) as f:
+    data = json.load(f)
+for entry in data['files']:
+    if entry['name'] == tgz:
+        entry['sha256'] = sha
+        break
+with open(path, 'w') as f:
+    json.dump(data, f, indent=2, ensure_ascii=False)
+    f.write('\n')
+PYEOF
+              python3 /tmp/update_json.py "$JSON_PATH" "$TGZ" "$NEW_SHA"
               echo "Updated $JSON_PATH"
             else
               echo "WARNING: $JSON_PATH not found, skipping JSON update"
