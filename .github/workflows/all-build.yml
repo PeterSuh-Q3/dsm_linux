@@ -471,6 +471,9 @@ jobs:
             FLAT_MODULES_DIR="$BUILD_OUTPUT_DIR/flat-modules-${OUT_TAG}"
             mkdir -p "$FLAT_MODULES_DIR"
             find "$KERNEL_VER_DIR/kernel" -type f -name "*.ko" -exec cp -t "$FLAT_MODULES_DIR" {} +
+            for META in modules.builtin modules.builtin.modinfo modules.order modules.dep modules.alias; do
+              [ -f "$KERNEL_VER_DIR/$META" ] && cp "$KERNEL_VER_DIR/$META" "$FLAT_MODULES_DIR/"
+            done
 
             tar -czf "$BUILD_OUTPUT_DIR/${OUT_TAG}.tgz" -C "$FLAT_MODULES_DIR" .
             echo "Modules build complete: $BUILD_OUTPUT_DIR/${OUT_TAG}.tgz"
