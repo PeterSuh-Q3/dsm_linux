@@ -405,6 +405,38 @@ jobs:
           make olddefconfig
           echo "Applied EXTRA_OPTS for ${{ matrix.platform }}"
 
+          # ✅ r1000nk / v1000nk: synoconfig에 CONFIG_DRM=not set → amdgpu 명시 활성화
+          # epyc7002/geminilakenk는 synoconfig에 이미 DRM_AMDGPU 풀옵션 활성화되어 있으므로 제외
+          if [[ "${{ matrix.platform }}" == "r1000nk" || "${{ matrix.platform }}" == "v1000nk" ]]; then
+            AMDGPU_OPTS=(
+              "CONFIG_DRM=m"
+              "CONFIG_DRM_KMS_HELPER=m"
+              "CONFIG_DRM_TTM=m"
+              "CONFIG_DRM_TTM_HELPER=m"
+              "CONFIG_DRM_SCHED=m"
+              "CONFIG_DRM_GEM_SHMEM_HELPER=m"
+              "CONFIG_DRM_PANEL_ORIENTATION_QUIRKS=m"
+              "CONFIG_DRM_AMDGPU=m"
+              "CONFIG_DRM_AMDGPU_USERPTR=y"
+              "CONFIG_DRM_AMDGPU_SI=n"
+              "CONFIG_DRM_AMDGPU_CIK=n"
+              "CONFIG_DRM_AMD_DC=n"
+              "CONFIG_DRM_BUDDY=m"
+              "CONFIG_HDMI=m"
+              "CONFIG_I2C_ALGOBIT=m"
+              "CONFIG_BACKLIGHT_CLASS_DEVICE=m"
+              "CONFIG_BACKLIGHT_LCD_SUPPORT=y"
+            )
+            for opt in "${AMDGPU_OPTS[@]}"; do
+              OPT_NAME="${opt%%=*}"
+              sed -i "/^${OPT_NAME}=/d" .config
+              sed -i "/^# ${OPT_NAME} is not set/d" .config
+              echo "$opt" >> .config
+            done
+            make olddefconfig
+            echo "Applied AMDGPU_OPTS for ${{ matrix.platform }}"
+          fi
+
           OUT_TAG="${{ matrix.platform }}-${{ matrix.dsm_version }}-${{ matrix.kernel_ver }}"
 
           # ✅ bzImage 빌드
