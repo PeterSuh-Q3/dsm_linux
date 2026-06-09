@@ -156,6 +156,9 @@ jobs:
               arch/x86/boot/compressed/head_64.S \
               lib/synolib/syno_kexec_test.c
           echo "DECOMPRESSION_TYPE=${DECOMPRESSION_TYPE} 적용 완료"
+          # ★ SYNO kexec_test_flags 의 switch_root(MS_MOVE/MS_BIND) 차단 제거 (플랫폼 브랜치는 MY_ABC_HERE 가드라 CONFIG=n 불가)
+          sed -i '/(flags & MS_MOVE) \&\& kexec_test_flags/,+1d; /(flags & MS_BIND) \&\& kexec_test_flags/,+1d' fs/namespace.c
+          echo "Removed SYNO kexec mount restriction from namespace.c"
 
           # ✅ .config: synology/synoconfigs 사용
           if [ ! -f "synology/synoconfigs/${{ matrix.platform }}" ]; then
@@ -175,7 +178,6 @@ jobs:
             "CONFIG_GDB_SCRIPTS=n"
             "CONFIG_SLIM_DEBUG_INFO=n"
             "CONFIG_SYNO_RAMDISK_INTEGRITY_CHECK=n"
-            "CONFIG_SYNO_KEXEC_TEST=n"
             "CONFIG_RD_XZ=y"
             "CONFIG_SYSTEM_TRUSTED_KEYS=\"\""
             "CONFIG_SYSTEM_EXTRA_CERTIFICATE_SIZE=0"
