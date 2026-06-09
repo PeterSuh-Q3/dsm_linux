@@ -31,6 +31,14 @@ jobs:
           path: tcrp-modules
           token: ${{ secrets.PAT }}
 
+      - name: Checkout redpill-load (bzImage destination)
+        uses: actions/checkout@v4
+        with:
+          repository: PeterSuh-Q3/redpill-load
+          ref: master
+          path: redpill-load
+          token: ${{ secrets.PAT }}
+
       - name: Copy tarballs and update JSON sha256
         run: |
           set -eux
@@ -77,4 +85,39 @@ jobs:
           else
             git commit -m "sync: update module tarballs + sha256 from dsm_linux master (run ${{ github.run_id }})"
             git push origin main
+          fi
+
+      - name: Copy bzImage files to redpill-load
+        run: |
+          set -eux
+          DSM_VER="7.3"
+          KVER="5.10.55"
+          ZIMAGE_DST="redpill-load/ext/custom-zImage"
+
+          for PLATFORM in epyc7002 geminilakenk r1000nk v1000nk; do
+            BZIMAGE="bzImage-${PLATFORM}-${DSM_VER}-${KVER}.gz"
+            SRC="dsm_linux/${BZIMAGE}"
+            DST="${ZIMAGE_DST}/${BZIMAGE}"
+
+            if [ ! -f "$SRC" ]; then
+              echo "SKIP: $SRC not found"
+              continue
+            fi
+
+            cp "$SRC" "$DST"
+            echo "Copied: ${BZIMAGE}"
+          done
+
+      - name: Commit and push bzImage to redpill-load
+        run: |
+          set -eux
+          cd redpill-load
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add ext/custom-zImage/bzImage-*.gz
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "sync: update bzImage from dsm_linux master (run ${{ github.run_id }})"
+            git push origin master
           fi
