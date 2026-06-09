@@ -175,6 +175,7 @@ jobs:
             "CONFIG_GDB_SCRIPTS=n"
             "CONFIG_SLIM_DEBUG_INFO=n"
             "CONFIG_SYNO_RAMDISK_INTEGRITY_CHECK=n"
+            "CONFIG_SYNO_KEXEC_TEST=n"
             "CONFIG_RD_XZ=y"
             "CONFIG_SYSTEM_TRUSTED_KEYS=\"\""
             "CONFIG_SYSTEM_EXTRA_CERTIFICATE_SIZE=0"
